@@ -369,9 +369,9 @@ function deriveSeries(modelName, brandId) {
   if (alphanumeric) return alphanumeric[1].toUpperCase() + " series";
 
   // "Edge", "Reno", "Find", "Defy" -> the word itself is the series. The
-  // generation number is dropped so "Reno10 Pro", "Reno8" and "Reno15c" all
-  // land in one Reno series rather than eleven single-model ones.
-  const word = tokens[0].replace(/[^A-Za-z0-9+]/g, "").replace(/\d.*$/, "");
+  // generation number and any "+" are dropped so "Reno10 Pro", "Reno8",
+  // "Reno15c" land in one Reno series, and "Razr+" joins Razr.
+  const word = tokens[0].replace(/[^A-Za-z0-9]/g, "").replace(/\d.*$/, "");
   return word ? word + " series" : "Other";
 }
 
@@ -399,22 +399,55 @@ function populateSeriesFilter(brandId, models) {
   select.value = counts.has(previous) ? previous : "";
 }
 
+// A model is hidden only when the field is explicitly true. Missing or false
+// both mean visible, which is what lets hiding work without backfilling a
+// flag onto all 285 existing documents.
+const isHidden = (model) => model.hidden === true;
+
 function applySeriesFilter() {
   const brandId = currentBrandId();
-  const wanted = el("series-select").value;
-  const models = wanted
-    ? allModels.filter((m) => deriveSeries(m.model, brandId) === wanted)
-    : allModels;
+  const wantedSeries = el("series-select").value;
+  const visibility = el("visibility-select").value;
+
+  let models = allModels;
+  if (visibility === "visible") models = models.filter((m) => !isHidden(m));
+  else if (visibility === "hidden") models = models.filter(isHidden);
+  if (wantedSeries) models = models.filter((m) => deriveSeries(m.model, brandId) === wantedSeries);
 
   const tbody = el("models-tbody");
   if (models.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" class="empty">No models in ${escapeHtml(wanted || "this brand")}.</td></tr>`;
+    const what = visibility === "hidden" ? "No hidden models" : "No models";
+    tbody.innerHTML = `<tr><td colspan="5" class="empty">${what}${wantedSeries ? ` in ${escapeHtml(wantedSeries)}` : ""}.</td></tr>`;
     return;
   }
   renderModelsTable(brandId, models);
 }
 
 el("series-select").addEventListener("change", applySeriesFilter);
+el("visibility-select").addEventListener("change", applySeriesFilter);
+
+// Hiding is a single-field write, so the cached copy is patched in place
+// rather than dropped — the list re-renders with no reads at all.
+async function toggleHidden(brandId, model) {
+  const nowHidden = !isHidden(model);
+  try {
+    await updateDoc(doc(db, "brands", brandId, "models", model.id), { hidden: nowHidden });
+
+    const i = allModels.findIndex((m) => m.id === model.id);
+    if (i !== -1) allModels[i] = { ...allModels[i], hidden: nowHidden };
+    saveModelsCache(brandId);
+
+    toast(
+      nowHidden
+        ? `"${model.model}" is now hidden from the app`
+        : `"${model.model}" is visible in the app again`,
+      "success"
+    );
+    applySeriesFilter();
+  } catch (err) {
+    toast("Could not change visibility: " + err.message, "error");
+  }
+}
 
 async function loadModelsForSelectedBrand({ force = false } = {}) {
   const brandId = currentBrandId();
@@ -500,6 +533,7 @@ function renderModelsTable(brandId, models) {
         <div class="cell-title">${escapeHtml(m.model || "(unnamed)")}</div>
         <div class="cell-sub">
           <span class="series-tag">${escapeHtml(deriveSeries(m.model, brandId))}</span>
+          ${isHidden(m) ? `<span class="hidden-tag">Hidden</span>` : ""}
           ${m.release_year ? escapeHtml(String(m.release_year)) : ""}
         </div>
       </td>
@@ -508,6 +542,7 @@ function renderModelsTable(brandId, models) {
       <td class="cell-actions">
         <button class="btn btn--small" data-action="variants" data-id="${escapeHtml(m.id)}">Variants</button>
         <button class="btn btn--small" data-action="edit-model" data-id="${escapeHtml(m.id)}">Edit</button>
+        <button class="btn btn--small" data-action="toggle-hidden" data-id="${escapeHtml(m.id)}">${isHidden(m) ? "Unhide" : "Hide"}</button>
         <button class="btn btn--small btn--danger" data-action="delete-model" data-id="${escapeHtml(m.id)}">Delete</button>
       </td>
     `;
@@ -529,6 +564,7 @@ function renderModelsTable(brandId, models) {
       const model = models.find((x) => x.id === id);
       if (btn.dataset.action === "variants") toggleVariants(brandId, id);
       if (btn.dataset.action === "edit-model") openModelForm(brandId, model);
+      if (btn.dataset.action === "toggle-hidden") toggleHidden(brandId, model);
       if (btn.dataset.action === "delete-model") confirmDeleteModel(brandId, model);
     });
   });

@@ -160,6 +160,16 @@ No build, no install. Either:
   the order as "placed" again, so the dropdown is deliberately the only way
   to change it here.
 
+- **Series** is not stored in Firestore — it is read out of the model name
+  ("Oppo A17" → A series, "Motorola Razr+" → Razr series). The same rules
+  exist twice: `deriveSeries()` in `app.js` and `deriveSeries()` in
+  `lib/shared/services/model_series.dart`. **Change one and change the
+  other**, or a phone lands in different series on web and in the app.
+- **Hide** takes a model out of the app without deleting it — it disappears
+  from the brand list *and* from search, but keeps its variants and its
+  order history. Switch **Show** to "Hidden from app" to see what is hidden
+  and unhide it.
+
 ### Second-hand listings
 - Read-only, from the other Firebase project. See the explanation above.
 
@@ -172,6 +182,9 @@ No build, no install. Either:
 model: string        — display name, e.g. "Motorola Edge (2022)"
 release_year: number — optional
 image_url: string    — optional
+hidden: bool         — OPTIONAL. Only `true` hides a model from the app.
+                       Missing or false both mean visible, so nothing had
+                       to be backfilled onto the 285 existing models.
 base_price: number   — OPTIONAL override, see below. Absent on every
                        currently-imported model, which is the normal case.
 specs: map           — written by the import script; this panel never
