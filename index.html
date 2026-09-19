@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>French Mobiles — Admin</title>
+
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#32CD32" />
+  <link rel="icon" href="icons/favicon.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="FM Admin" />
+  <meta name="mobile-web-app-capable" content="yes" />
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ===================== Login ===================== -->
+  <div id="login-screen" class="login-screen">
+    <form id="login-form" class="login-card">
+      <div class="login-brand">
+        <div class="login-logo">FM</div>
+        <h1>French Mobiles</h1>
+        <p class="login-sub">Admin</p>
+      </div>
+
+      <p id="login-error" class="login-error" hidden></p>
+
+      <label class="field">
+        <span>Email</span>
+        <input id="login-email" type="email" required autocomplete="username"
+               inputmode="email" autocapitalize="none" autocorrect="off"
+               placeholder="admin@yourshop.com" />
+      </label>
+
+      <div class="field">
+        <label for="login-password"><span>Password</span></label>
+        <div class="field-with-affix">
+          <input id="login-password" type="password" required autocomplete="current-password" placeholder="••••••••" />
+          <button type="button" id="pwd-toggle" class="pwd-toggle" aria-label="Show password">Show</button>
+        </div>
+      </div>
+
+      <button id="login-submit" type="submit" class="btn btn--primary btn--full">Sign in</button>
+
+      <p class="login-hint">
+        No admin account yet? See <code>README.md</code> in this folder for setup.
+      </p>
+    </form>
+  </div>
+
+  <!-- ===================== App ===================== -->
+  <div id="app-screen" class="app-screen" hidden>
+    <header class="topbar">
+      <div class="topbar-brand">
+        <div class="login-logo login-logo--sm">FM</div>
+        <span class="topbar-title">French Mobiles Admin</span>
+      </div>
+      <div class="topbar-right">
+        <button id="install-btn" class="install-btn" hidden>Install app</button>
+        <span id="admin-email" class="admin-email"></span>
+        <button id="sign-out" class="btn btn--ghost btn--small">Sign out</button>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab-btn tab-btn--active" data-tab="tab-catalog">Catalog</button>
+      <button class="tab-btn" data-tab="tab-orders">Orders</button>
+      <button class="tab-btn" data-tab="tab-listings">
+        <span class="tab-label-long">Second-hand listings</span>
+        <span class="tab-label-short">Listings</span>
+      </button>
+    </nav>
+
+    <main class="content">
+
+      <!-- ----- Catalog tab ----- -->
+      <section id="tab-catalog" class="tab-panel">
+        <div class="panel-header">
+          <div>
+            <h2>Catalog</h2>
+            <p class="panel-sub">
+              Brands, models and their storage variants. This is what the app's
+              Sell flow reads to price a trade-in.
+            </p>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <label class="field field--inline">
+            <span>Brand</span>
+            <select id="brand-select"></select>
+          </label>
+          <label class="field field--inline">
+            <span>Series</span>
+            <select id="series-select">
+              <option value="">All series</option>
+            </select>
+          </label>
+          <div id="custom-brand-row" class="field field--inline" hidden>
+            <label>
+              <span>Brand id</span>
+              <input id="custom-brand-input" type="text" autocapitalize="none"
+                     autocorrect="off" placeholder="e.g. nothing" />
+            </label>
+          </div>
+          <button id="add-model-btn" class="btn btn--primary">+ Add model</button>
+          <button id="refresh-btn" class="btn btn--ghost" title="Re-read this brand from the database">↻ Refresh</button>
+        </div>
+
+        <p id="cache-note" class="cache-note"></p>
+
+        <p id="custom-brand-warning" class="warning-note" hidden>
+          ⚠️ This brand id isn't in the app's hardcoded brand list
+          (<code>lib/models/brand_model.dart</code>). Models added here will
+          still show up in the app's search, but not when someone browses
+          Sell → Brand list, since that screen doesn't know this brand exists.
+        </p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:64px"></th>
+                <th>Model</th>
+                <th>Headline price</th>
+                <th>Variants</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="models-tbody">
+              <tr><td colspan="5" class="empty">Choose a brand above.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ----- Orders tab ----- -->
+      <section id="tab-orders" class="tab-panel" hidden>
+        <div class="panel-header">
+          <div>
+            <h2>Orders</h2>
+            <p class="panel-sub">
+              Live — changes here update the buyer's app immediately, and
+              vice versa.
+            </p>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <label class="field field--inline field--grow">
+            <span>Search</span>
+            <input id="orders-search" type="search" autocapitalize="none"
+                   autocorrect="off" placeholder="Model, brand, or order id…" />
+          </label>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Order</th>
+                <th>Device</th>
+                <th>Payout</th>
+                <th>Status</th>
+                <th>Placed</th>
+                <th>Set status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="orders-tbody">
+              <tr><td colspan="7" class="empty">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ----- Second-hand listings tab ----- -->
+      <section id="tab-listings" class="tab-panel" hidden>
+        <div class="panel-header">
+          <div>
+            <h2>Second-hand listings</h2>
+            <p class="panel-sub">
+              What the app's home screen shows buyers. Read-only here — see
+              the note below for why.
+            </p>
+          </div>
+        </div>
+
+        <p class="warning-note">
+          ℹ️ This collection lives in a <strong>different Firebase project</strong>
+          (<code>fren-75087</code>) than the catalog and orders above
+          (<code>french-mobiles-marketplace</code>) — the Android app's build
+          config (<code>google-services.json</code>) points here for its
+          default connection, while everything else uses a second,
+          explicitly-named connection to the other project. Both are real and
+          both are live. See README.md for the full explanation. Editing is
+          disabled here because doing it safely would need a second admin
+          sign-in scoped to this other project.
+        </p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:64px"></th>
+                <th>Device</th>
+                <th>Condition</th>
+                <th>Price</th>
+                <th>Original price</th>
+              </tr>
+            </thead>
+            <tbody id="listings-tbody">
+              <tr><td colspan="5" class="empty">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ===================== Add / edit model ===================== -->
+  <dialog id="model-modal" class="modal">
+    <form id="model-form" class="modal-card">
+      <h3 id="model-modal-title">Add model</h3>
+
+      <label class="field">
+        <span>Model name</span>
+        <input id="model-form-name" type="text" required placeholder="e.g. iPhone 13" />
+      </label>
+      <label class="field">
+        <span>Headline price (₹) <em>(optional)</em></span>
+        <input id="model-form-price" type="number" min="0" step="1"
+               inputmode="numeric" placeholder="Leave blank — use variants" />
+      </label>
+      <p class="field-help">
+        Leave this blank and the app shows the highest variant price, which is
+        how every model in this catalogue works today. Put a number here and
+        the app uses it for the brand list and stops reading the variants — so
+        it can then disagree with the price the variant screen actually quotes.
+        To change what a seller is paid, edit the <strong>variants</strong> instead.
+      </p>
+      <label class="field">
+        <span>Release year <em>(optional)</em></span>
+        <input id="model-form-year" type="text" inputmode="numeric" placeholder="e.g. 2021" />
+      </label>
+      <label class="field">
+        <span>Image URL <em>(optional)</em></span>
+        <input id="model-form-image" type="url" inputmode="url" autocapitalize="none"
+               autocorrect="off" placeholder="https://…" />
+      </label>
+
+      <div class="modal-actions">
+        <button type="button" id="model-modal-cancel" class="btn btn--ghost">Cancel</button>
+        <button type="submit" class="btn btn--primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ===================== Add / edit variant ===================== -->
+  <dialog id="variant-modal" class="modal">
+    <form id="variant-form" class="modal-card">
+      <h3 id="variant-modal-title">Add variant</h3>
+
+      <label class="field">
+        <span>Storage</span>
+        <input id="variant-form-storage" type="text" required placeholder="e.g. 128GB" />
+      </label>
+      <label class="field">
+        <span>Base price (₹)</span>
+        <input id="variant-form-price" type="number" min="0" step="1" required
+               inputmode="numeric" placeholder="e.g. 32000" />
+      </label>
+
+      <div class="modal-actions">
+        <button type="button" id="variant-modal-cancel" class="btn btn--ghost">Cancel</button>
+        <button type="submit" class="btn btn--primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ===================== Order details ===================== -->
+  <dialog id="order-modal" class="modal">
+    <div class="modal-card">
+      <h3>Order details</h3>
+      <div id="order-detail-list" class="detail-list"></div>
+      <div class="modal-actions">
+        <button type="button" id="order-modal-close" class="btn btn--ghost">Close</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div id="toast-host" class="toast-host"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

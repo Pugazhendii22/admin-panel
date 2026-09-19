@@ -1,0 +1,722 @@
+/* French Mobiles — Admin panel styling.
+   Colours match the Flutter app's design tokens
+   (lib/shared/theme/app_colors.dart) for visual continuity, even though
+   this is a completely separate codebase with no shared build.
+
+   Layout is desktop-table / mobile-card: the same <table> markup becomes a
+   stack of cards under 720px, driven by each cell's data-label. */
+
+:root {
+  --primary: #32CD32;
+  --primary-dark: #28A428;
+  --primary-soft: #E8F9E8;
+  --on-primary-soft: #1B7A1B;
+  --bg: #F7F8F8;
+  --surface: #FFFFFF;
+  --text: #1A1A1A;
+  --text-secondary: #6B7280;
+  --text-tertiary: #9CA3AF;
+  --border: #EEEEEE;
+  --border-strong: #E2E4E4;
+  --success: #22C55E;
+  --success-soft: #E7F8ED;
+  --warning: #F59E0B;
+  --warning-soft: #FEF3E2;
+  --error: #EF4444;
+  --error-soft: #FDECEC;
+  --radius: 14px;
+  --radius-sm: 10px;
+  --shadow: 0 2px 10px rgba(0,0,0,0.06);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; }
+
+/* Must outrank the `display` rules below: an author `display` declaration
+   beats the UA stylesheet's `[hidden] { display: none }`, so without this
+   every `el.hidden = true` on a flex element silently does nothing. */
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---------- Login ---------- */
+
+.login-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 32px 28px;
+}
+
+.login-brand { text-align: center; margin-bottom: 24px; }
+.login-brand h1 { font-size: 20px; margin: 12px 0 0; }
+.login-sub { color: var(--text-secondary); margin: 2px 0 0; font-size: 13px; }
+
+.login-logo {
+  width: 48px; height: 48px;
+  margin: 0 auto;
+  border-radius: 12px;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 800;
+  font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+}
+.login-logo--sm { width: 30px; height: 30px; font-size: 12px; border-radius: 8px; }
+
+.login-error {
+  background: var(--error-soft);
+  color: var(--error);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 13px;
+  margin: 0 0 16px;
+}
+
+.login-hint {
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  margin: 16px 0 0;
+}
+.login-hint code { background: var(--bg); padding: 1px 5px; border-radius: 4px; }
+
+/* ---------- Form fields ---------- */
+
+.field { display: block; margin-bottom: 16px; }
+.field span { display: block; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+.field em { font-weight: 400; font-style: normal; color: var(--text-tertiary); }
+.field input, .field select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--surface);
+  color: var(--text);
+}
+.field input:focus, .field select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(50,205,50,0.15);
+}
+.field-help {
+  margin: -8px 0 16px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.field--inline { display: flex; flex-direction: column; margin-bottom: 0; min-width: 180px; }
+.field--grow { flex: 1; min-width: 240px; }
+
+/* Password field with a reveal toggle — typing a password blind on a phone
+   keyboard is the single most common reason a correct password gets
+   rejected, so the toggle is not a nicety here. */
+/* Wraps the input alone, not the label, so the toggle centres on the input
+   box whatever its height. */
+.field-with-affix { position: relative; display: block; }
+.field-with-affix input { padding-right: 64px; }
+.pwd-toggle {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  right: 3px;
+  min-width: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+  touch-action: manipulation;
+}
+.pwd-toggle:hover { background: var(--bg); color: var(--text); }
+
+/* ---------- Buttons ---------- */
+
+.btn {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-size: 13.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  touch-action: manipulation;
+  white-space: nowrap;
+}
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.btn--primary { background: var(--primary); color: #fff; box-shadow: 0 4px 14px rgba(50,205,50,0.28); }
+.btn--primary:hover:not(:disabled) { background: var(--primary-dark); }
+.btn--full { width: 100%; padding: 12px; font-size: 14.5px; }
+
+.btn--ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border-strong); }
+.btn--ghost:hover:not(:disabled) { background: var(--bg); }
+
+.btn--danger { background: var(--error-soft); color: var(--error); }
+.btn--danger:hover:not(:disabled) { background: var(--error); color: #fff; }
+
+.btn--small { padding: 6px 12px; font-size: 12.5px; }
+.btn--tiny { padding: 4px 9px; font-size: 11.5px; border-radius: 8px; background: var(--bg); color: var(--text-secondary); }
+.btn--tiny.btn--danger { background: var(--error-soft); color: var(--error); }
+
+/* ---------- Top bar / tabs ---------- */
+
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+  padding: 12px 24px;
+  padding-top: calc(12px + env(safe-area-inset-top, 0px));
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+.topbar-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+.topbar-right { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.admin-email {
+  color: var(--text-secondary);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tabs {
+  display: flex; gap: 4px;
+  padding: 0 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 56px;
+  z-index: 19;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab-btn {
+  border: none; background: transparent;
+  padding: 12px 16px;
+  font-size: 13.5px; font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  touch-action: manipulation;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn--active { color: var(--primary-dark); border-bottom-color: var(--primary); }
+.tab-label-short { display: none; }
+
+.content {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 28px 24px;
+  padding-bottom: calc(64px + var(--safe-b));
+}
+
+.panel-header { margin-bottom: 20px; }
+.panel-header h2 { margin: 0 0 4px; font-size: 19px; }
+.panel-sub { margin: 0; color: var(--text-secondary); font-size: 13px; }
+
+.toolbar {
+  display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.cache-note {
+  margin: -6px 0 14px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.cache-note:empty { display: none; }
+.cache-note::before { content: "● "; color: var(--success); }
+.cache-note--stale::before { color: var(--text-tertiary); }
+
+.warning-note {
+  background: var(--warning-soft);
+  color: #92651a;
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin: 0 0 16px;
+}
+.warning-note code { background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 4px; }
+
+/* ---------- Tables ---------- */
+
+.table-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+table { width: 100%; border-collapse: collapse; }
+thead th {
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: rgba(0,0,0,0.012); }
+
+.empty { text-align: center; color: var(--text-tertiary); padding: 32px 14px; }
+.empty--error { color: var(--error); }
+
+.cell-thumb {
+  width: 44px; height: 44px;
+  border-radius: 10px;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.cell-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.thumb-placeholder { font-size: 18px; opacity: 0.4; }
+
+.cell-title { font-weight: 600; }
+.cell-sub { color: var(--text-tertiary); font-size: 12px; margin-top: 2px; }
+
+.series-tag {
+  display: inline-block;
+  background: var(--primary-soft);
+  color: var(--on-primary-soft);
+  font-weight: 700;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-right: 5px;
+}
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; color: var(--text-secondary); }
+
+.cell-actions { white-space: nowrap; }
+.cell-actions .btn + .btn { margin-left: 6px; }
+
+.status-select {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  font-size: 12.5px;
+  font-family: inherit;
+  background: var(--surface);
+  color: var(--text);
+  max-width: 100%;
+}
+
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.badge--success { background: var(--success-soft); color: var(--success); }
+.badge--warning { background: var(--warning-soft); color: var(--warning); }
+
+/* ---------- Variant panel ---------- */
+
+.variant-row td { padding: 0; background: var(--bg); }
+.variant-panel { padding: 16px 14px 18px 74px; }
+.variant-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.variant-item {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+}
+.variant-storage { font-weight: 600; min-width: 90px; }
+.variant-price { color: var(--on-primary-soft); font-weight: 600; flex: 1; }
+
+.variant-add-form {
+  display: flex; gap: 8px; flex-wrap: wrap;
+}
+.variant-add-form input {
+  padding: 8px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-family: inherit;
+}
+.variant-add-form input[name="storage"] { width: 160px; }
+.variant-add-form input[name="base_price"] { width: 130px; }
+
+/* ---------- Modal ---------- */
+
+.modal {
+  border: none;
+  border-radius: var(--radius);
+  padding: 0;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.modal::backdrop { background: rgba(0,0,0,0.35); }
+.modal[open] { animation: modal-in 0.2s ease; }
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+.modal-card { padding: 24px; width: 360px; max-width: 100%; }
+.modal-card h3 { margin: 0 0 18px; font-size: 17px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+/* ---------- Order details sheet ---------- */
+
+.detail-list { font-size: 13.5px; }
+
+.detail-device {
+  display: flex; align-items: center; gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.detail-device .cell-thumb { width: 52px; height: 52px; flex: 0 0 auto; }
+.detail-device .cell-title { font-size: 16px; }
+
+.detail-heading {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+  margin: 18px 0 2px;
+}
+
+.detail-row {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+}
+.detail-row .k { color: var(--text-secondary); flex: 1 1 auto; min-width: 0; }
+.detail-row .v {
+  font-weight: 600; text-align: right;
+  flex: 0 1 auto;
+  overflow-wrap: anywhere;
+}
+
+.detail-row--deduction .k em {
+  display: block;
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  margin-top: 1px;
+}
+.detail-minus { color: var(--error); }
+
+.detail-row--total {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
+  padding: 12px 0 0;
+  border-top: 2px solid var(--text);
+  border-bottom: none;
+  margin-top: 2px;
+}
+.detail-row--total .k { font-weight: 700; color: var(--text); }
+.detail-row--total .v { font-size: 17px; color: var(--on-primary-soft); }
+
+.detail-note {
+  background: var(--warning-soft);
+  color: #92651a;
+  border-radius: var(--radius-sm);
+  padding: 9px 11px;
+  font-size: 12px;
+  margin: 10px 0 0;
+}
+.detail-address {
+  margin: 6px 0 0;
+  padding: 10px 12px;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  line-height: 1.45;
+}
+
+/* ---------- Toasts ---------- */
+
+.toast-host {
+  position: fixed;
+  bottom: calc(20px + var(--safe-b));
+  right: 20px;
+  left: auto;
+  display: flex; flex-direction: column; gap: 8px;
+  z-index: 999;
+  pointer-events: none;
+}
+.toast {
+  background: var(--text);
+  color: #fff;
+  padding: 11px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.2s, transform 0.2s;
+  max-width: 320px;
+}
+.toast--in { opacity: 1; transform: translateY(0); }
+.toast--success { background: var(--on-primary-soft); }
+.toast--error { background: var(--error); }
+
+/* ---------- Install (PWA) prompt ---------- */
+
+.install-btn {
+  border: 1px solid var(--primary);
+  background: var(--primary-soft);
+  color: var(--on-primary-soft);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* ===========================================================================
+   MOBILE — under 720px the tables become cards.
+
+   Each <tr> turns into a CSS grid: a 52px media column and a content
+   column. By default every cell spans both (full width) and renders its
+   data-label on the left with the value on the right; only .cell-media and
+   .cell-main opt into the two-column top row.
+   =========================================================================== */
+
+@media (max-width: 720px) {
+
+  body { font-size: 15px; }
+
+  .content { padding: 18px 14px calc(56px + var(--safe-b)); }
+
+  .topbar { padding: 10px 14px; padding-top: calc(10px + env(safe-area-inset-top, 0px)); gap: 8px; }
+  .topbar-right { gap: 8px; }
+  /* The logo alone identifies the app; the wordmark only squeezes the
+     controls that actually do something. */
+  .topbar-title { display: none; }
+  .tabs { top: 52px; padding: 0 8px; }
+  .tab-btn { padding: 12px 14px; font-size: 14px; min-height: 48px; }
+  .tab-label-long { display: none; }
+  .tab-label-short { display: inline; }
+
+  .panel-header h2 { font-size: 18px; }
+
+  /* 16px prevents iOS Safari from auto-zooming the viewport on focus. */
+  .field input, .field select,
+  .variant-add-form input,
+  .status-select { font-size: 16px; }
+  .field input, .field select { padding: 12px; }
+
+  .toolbar { flex-direction: column; align-items: stretch; gap: 12px; }
+  .field--inline, .field--grow { min-width: 0; width: 100%; }
+  .toolbar .btn { width: 100%; padding: 13px; font-size: 15px; }
+
+  /* --- table → cards --- */
+  .table-wrap { background: transparent; border: none; border-radius: 0; overflow: visible; }
+  table, tbody, tr, td { display: block; width: 100%; }
+  thead { display: none; }
+
+  tbody tr {
+    display: grid;
+    grid-template-columns: 52px minmax(0, 1fr);
+    align-items: center;
+    gap: 2px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 10px;
+    box-shadow: var(--shadow);
+  }
+  tbody tr:hover { background: var(--surface); }
+
+  tbody td {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--border);
+    min-height: 34px;
+  }
+  tbody tr td:last-child,
+  tbody tr td:has(+ .cell-actions) { border-bottom: none; }
+
+  tbody td[data-label]::before {
+    content: attr(data-label);
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-tertiary);
+    flex: 0 0 auto;
+  }
+
+  /* Top row of the card: thumbnail beside the title. */
+  td.cell-media {
+    grid-column: 1;
+    padding: 0;
+    border-bottom: none;
+    display: block;
+  }
+  td.cell-main {
+    grid-column: 2;
+    padding: 0 0 10px;
+    border-bottom: none;
+    display: block;
+  }
+  td.cell-main .cell-title { font-size: 15.5px; }
+
+  /* A title cell with no thumbnail beside it spans the full width. `order`
+     lifts it to the top of the card without disturbing the desktop column
+     order, so an order reads as "device first" on a phone and still lines up
+     under its Order/Device/Payout headers on a wide screen. */
+  td.cell-main--full {
+    grid-column: 1 / -1;
+    order: -1;
+    padding: 0 0 10px;
+    border-bottom: 1px solid var(--border);
+    display: block;
+  }
+
+  /* The dropdown already shows the status; the read-only badge is noise. */
+  td.cell-status-badge { display: none; }
+
+  td.cell-actions {
+    display: flex;
+    gap: 8px;
+    padding: 12px 0 0;
+    border-bottom: none;
+    white-space: normal;
+  }
+  td.cell-actions .btn {
+    flex: 1;
+    margin-left: 0;
+    min-height: 44px;
+    font-size: 13.5px;
+    padding: 10px 8px;
+  }
+  td.cell-actions .btn + .btn { margin-left: 0; }
+
+  .empty { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); }
+  tbody tr:has(.empty) {
+    display: block;
+    padding: 0;
+    border: none;
+    box-shadow: none;
+    background: transparent;
+  }
+  tbody tr td.empty { border-bottom: none; display: block; }
+
+  .status-select { width: 100%; max-width: 200px; padding: 10px 12px; border-radius: var(--radius-sm); }
+
+  /* --- variants --- */
+  .variant-row { margin-top: -10px; }
+  tbody tr.variant-row {
+    display: block;
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    margin-bottom: 10px;
+  }
+  .variant-row td { padding: 0; border: none; display: block; }
+  .variant-panel {
+    padding: 14px;
+    background: var(--primary-soft);
+    border-radius: var(--radius);
+  }
+  .variant-item { flex-wrap: wrap; gap: 8px; padding: 12px; }
+  .variant-storage { min-width: 0; flex: 1 0 auto; font-size: 15px; }
+  .variant-price { flex: 0 0 auto; font-size: 15px; }
+  .variant-item .btn--tiny {
+    flex: 1 1 40%;
+    min-height: 40px;
+    font-size: 13px;
+    border-radius: var(--radius-sm);
+  }
+  .variant-add-form { flex-direction: column; }
+  .variant-add-form input,
+  .variant-add-form input[name="storage"],
+  .variant-add-form input[name="base_price"] {
+    width: 100%;
+    padding: 12px;
+  }
+  .variant-add-form .btn { width: 100%; min-height: 46px; }
+
+  /* --- modal becomes a bottom sheet --- */
+  .modal {
+    margin: auto auto 0 auto;
+    width: 100%;
+    max-width: 100%;
+    border-radius: 20px 20px 0 0;
+    max-height: 92dvh;
+  }
+  .modal[open] { animation: sheet-in 0.24s cubic-bezier(0.2, 0, 0.1, 1); }
+  @keyframes sheet-in {
+    from { transform: translateY(100%); }
+    to { transform: none; }
+  }
+  .modal-card {
+    width: auto;
+    padding: 20px 18px calc(20px + var(--safe-b));
+  }
+  .modal-card h3 { font-size: 18px; }
+  .modal-actions { margin-top: 18px; }
+  .modal-actions .btn { flex: 1; min-height: 48px; }
+
+  .toast-host { left: 14px; right: 14px; bottom: calc(14px + var(--safe-b)); }
+  .toast { max-width: none; }
+}
+
+@media (max-width: 480px) {
+  .admin-email { display: none; }
+  .tab-btn { padding: 12px 12px; }
+}
