@@ -276,8 +276,17 @@
 
       <label class="field">
         <span>Storage</span>
-        <input id="variant-form-storage" type="text" required placeholder="e.g. 128GB" />
+        <!-- A datalist rather than a select: the catalog's existing spellings
+             are offered, but a genuinely new configuration can still just be
+             typed. -->
+        <input id="variant-form-storage" type="text" required
+               list="variant-storage-options" autocomplete="off"
+               placeholder="e.g. 128GB 8GB RAM" />
+        <datalist id="variant-storage-options"></datalist>
       </label>
+      <!-- One tap fills the field with a spelling already used elsewhere in
+           the catalog. Hidden entirely when nothing is known yet. -->
+      <div id="variant-storage-picks" class="chip-row" hidden></div>
       <label class="field">
         <span>Base price (₹)</span>
         <input id="variant-form-price" type="number" min="0" step="1" required

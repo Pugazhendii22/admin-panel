@@ -66,6 +66,9 @@ const secondHandDb = getFirestore(secondHandApp);
 const KNOWN_BRANDS = [
   "Samsung", "Motorola", "Oppo", "Apple",
   "OnePlus", "Xiaomi", "Vivo", "Realme", "Google",
+  "Asus", "BlackBerry", "Honor", "HTC", "Huawei", "Infinix", "iQOO",
+  "Lava", "Lenovo", "LG", "Meizu", "Micromax", "Nokia", "Nothing",
+  "Panasonic", "Poco", "Sony", "Tecno", "ZTE",
 ];
 
 // Order status values — must match exactly what
@@ -174,6 +177,59 @@ function cacheClear() {
 
 const modelsKey = (brandId) => `models:${brandId}`;
 const variantsKey = (brandId, modelId) => `variants:${brandId}:${modelId}`;
+
+const STORAGE_OPTIONS_KEY = "storageOptions";
+
+// Every storage string the catalog already uses, e.g. "128GB 8GB RAM".
+//
+// Typed free-hand, the same configuration gets entered a dozen ways — "128GB
+// 8GB", "128 GB 8GB RAM", "8/128" — and the app then shows them as different
+// variants of the same phone. Offering what already exists makes the
+// consistent spelling the easy one to pick.
+//
+// Built from variant lists that were loaded anyway and from every save, so it
+// costs no extra reads: browsing the catalog is what fills it.
+function knownStorageOptions() {
+  const out = new Set();
+  try {
+    const saved = cacheGet(STORAGE_OPTIONS_KEY);
+    if (Array.isArray(saved)) for (const v of saved) out.add(v);
+  } catch {}
+  // Anything cached this session, including models not visited before.
+  try {
+    for (const k of Object.keys(localStorage)) {
+      if (!k.startsWith(CACHE_PREFIX + "variants:")) continue;
+      const entry = JSON.parse(localStorage.getItem(k));
+      const list = entry && entry.value;
+      if (!Array.isArray(list)) continue;
+      for (const v of list) {
+        if (v && typeof v.storage === "string" && v.storage.trim()) {
+          out.add(v.storage.trim());
+        }
+      }
+    }
+  } catch {}
+  return [...out].sort(compareStorage);
+}
+
+function rememberStorageOptions(values) {
+  const out = new Set(knownStorageOptions());
+  for (const v of values) {
+    if (typeof v === "string" && v.trim()) out.add(v.trim());
+  }
+  cacheSet(STORAGE_OPTIONS_KEY, [...out]);
+}
+
+// Smallest first, so the list reads like a spec sheet rather than
+// alphabetically, where 256GB sorts before 64GB.
+function compareStorage(a, b) {
+  const size = (s) => {
+    const m = String(s).match(/(\d+)\s*(TB|GB)/i);
+    if (!m) return Number.MAX_SAFE_INTEGER;
+    return Number(m[1]) * (m[2].toUpperCase() === "TB" ? 1024 : 1);
+  };
+  return size(a) - size(b) || String(a).localeCompare(String(b));
+}
 
 // Re-saves the in-memory model list for the current brand. Called after any
 // model write so the next load reflects the edit without a round trip.
@@ -588,6 +644,7 @@ async function fetchVariants(brandId, modelId, { force = false } = {}) {
   const snap = await getDocs(collection(db, "brands", brandId, "models", modelId, "variants"));
   const variants = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   cacheSet(variantsKey(brandId, modelId), variants);
+  rememberStorageOptions(variants.map((v) => v.storage));
   return variants;
 }
 
@@ -673,7 +730,46 @@ function openVariantForm(brandId, modelId, variant) {
   el("variant-modal-title").textContent = variant ? "Edit variant" : "Add variant";
   el("variant-form-storage").value = variant?.storage || "";
   el("variant-form-price").value = variant?.base_price ?? "";
+  fillStorageOptions(brandId, modelId);
   variantModal.showModal();
+}
+
+// Offers the spellings the catalog already uses, as a datalist and as chips.
+//
+// Configurations already on THIS model are left out of the chips: adding a
+// second 128GB variant to the same phone is a mistake, not a shortcut, and
+// offering it as a one-tap button invites it.
+function fillStorageOptions(brandId, modelId) {
+  const all = knownStorageOptions();
+  const list = el("variant-storage-options");
+  list.innerHTML = all
+    .map((v) => `<option value="${escapeHtml(v)}"></option>`)
+    .join("");
+
+  const taken = new Set(
+    (cacheGet(variantsKey(brandId, modelId)) || [])
+      .map((v) => (v.storage || "").trim())
+      .filter(Boolean)
+  );
+  // When editing, its own value is not "taken" — it is the one being changed.
+  if (variantCtx.editingId) {
+    const self = (cacheGet(variantsKey(brandId, modelId)) || [])
+      .find((v) => v.id === variantCtx.editingId);
+    if (self) taken.delete((self.storage || "").trim());
+  }
+
+  const picks = all.filter((v) => !taken.has(v)).slice(0, 8);
+  const host = el("variant-storage-picks");
+  host.hidden = picks.length === 0;
+  host.innerHTML = picks
+    .map((v) => `<button type="button" class="chip" data-pick="${escapeHtml(v)}">${escapeHtml(v)}</button>`)
+    .join("");
+  host.querySelectorAll("[data-pick]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      el("variant-form-storage").value = btn.dataset.pick;
+      el("variant-form-price").focus();
+    });
+  });
 }
 
 el("variant-modal-cancel").addEventListener("click", () => variantModal.close());
@@ -687,6 +783,21 @@ el("variant-form").addEventListener("submit", async (e) => {
     toast("Storage and a numeric price are required.", "error");
     return;
   }
+
+  // A second "128GB 8GB RAM" on the same phone is always a mistake, and it
+  // shows up in the app as two identical options the seller must choose
+  // between.
+  const existing = cacheGet(variantsKey(brandId, modelId)) || [];
+  const clash = existing.find(
+    (v) => v.id !== editingId &&
+      (v.storage || "").trim().toLowerCase() === storage.toLowerCase()
+  );
+  if (clash) {
+    toast(`This model already has a "${clash.storage}" variant.`, "error");
+    return;
+  }
+
+  rememberStorageOptions([storage]);
 
   const path = collection(db, "brands", brandId, "models", modelId, "variants");
   try {
@@ -893,6 +1004,10 @@ function renderOrders(orders) {
     ? orders.filter((o) =>
         (o.modelName || "").toLowerCase().includes(filter) ||
         (o.brand || "").toLowerCase().includes(filter) ||
+        // The code the seller reads out over the phone, with the "FM-"
+        // optional so typing just the six characters finds it.
+        (o.reference || "").toLowerCase().includes(filter) ||
+        (o.reference || "").toLowerCase().replace("fm-", "").includes(filter) ||
         o.id.toLowerCase().includes(filter)
       )
     : orders;
@@ -905,7 +1020,7 @@ function renderOrders(orders) {
 
   tbody.innerHTML = filtered.map((o) => `
     <tr>
-      <td class="mono" data-label="Order">${escapeHtml(o.id.slice(0, 8))}…</td>
+      <td class="mono" data-label="Order">${escapeHtml(o.reference || o.id.slice(0, 8) + "…")}</td>
       <td class="cell-main--full">
         <div class="cell-title">${escapeHtml(o.modelName || "Device")}</div>
         <div class="cell-sub">${escapeHtml([o.brand, o.storage].filter(Boolean).join(" · "))}</div>
@@ -968,7 +1083,7 @@ el("order-modal-close").addEventListener("click", () => orderModal.close());
 const HANDLED = new Set([
   "id", "modelName", "brand", "storage", "imageUrl", "modelDocId",
   "basePrice", "finalPayout", "quote", "quoteValidUntil",
-  "status", "createdAt", "updatedAt", "userId",
+  "status", "createdAt", "updatedAt", "userId", "reference",
   "addressLabel", "addressFullText", "addressLatitude", "addressLongitude",
 ]);
 
@@ -1030,6 +1145,8 @@ function showOrderDetails(order) {
 
   // --- status ---
   out.push(heading("Status"));
+  // First, because it is what the caller on the phone will have quoted.
+  if (order.reference) out.push(row("Reference", order.reference));
   out.push(row("Stage", ORDER_STAGES.find((s) => s.value === order.status)?.label || order.status || "placed"));
   if (order.createdAt) out.push(row("Placed", formatDate(order.createdAt)));
   if (order.updatedAt) out.push(row("Last updated", formatDate(order.updatedAt)));

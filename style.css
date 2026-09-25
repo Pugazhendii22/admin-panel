@@ -731,3 +731,42 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
   .admin-email { display: none; }
   .tab-btn { padding: 12px 12px; }
 }
+
+/* Storage quick-picks in the variant modal.
+   Tap targets are 34px tall rather than the 44px used for primary actions:
+   these sit inside a form on a phone, and full-size buttons would push the
+   price field below the fold. */
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -4px 0 14px;
+}
+
+.chip {
+  font: inherit;
+  font-size: 0.82rem;
+  line-height: 1;
+  padding: 10px 12px;
+  min-height: 34px;
+  color: var(--on-primary-soft);
+  background: var(--primary-soft);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.chip:hover {
+  border-color: var(--primary);
+}
+
+.chip:active {
+  background: var(--primary);
+  color: #FFFFFF;
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--primary-dark);
+  outline-offset: 2px;
+}
