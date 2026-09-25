@@ -1619,6 +1619,31 @@ function startInspectorListener(uid) {
   );
 }
 
+// A maps link, or nothing.
+//
+// The coordinates come out of Firestore, which means a client wrote them, so
+// they are not trusted to be numbers however reliably the app sends them. A
+// string carrying a quote would otherwise close the href and inject markup
+// into this page — every other field in the card is escaped, and these were
+// the two that were not.
+//
+// Validated rather than escaped: a latitude that is not a finite number in
+// range is not a coordinate at all, and linking to it would be meaningless
+// even if it were safe.
+function mapLink(lat, lng) {
+  // Rejected before Number(), which turns null and "" into 0 — a valid
+  // coordinate, in the Gulf of Guinea, and not where the pickup is.
+  if (lat === null || lat === undefined || lat === "") return "";
+  if (lng === null || lng === undefined || lng === "") return "";
+  const y = Number(lat);
+  const x = Number(lng);
+  if (!Number.isFinite(y) || !Number.isFinite(x)) return "";
+  if (y < -90 || y > 90 || x < -180 || x > 180) return "";
+  const q = encodeURIComponent(`${y},${x}`);
+  return `<a class="btn btn--small" target="_blank" rel="noopener"
+             href="https://www.google.com/maps/search/?api=1&query=${q}">Map</a>`;
+}
+
 function renderInspectorJobs(orders) {
   const host = el("inspector-list");
   if (!host) return;
@@ -1650,10 +1675,7 @@ function renderInspectorJobs(orders) {
               (s) => `<option value="${s.value}" ${s.value === (o.status || "placed") ? "selected" : ""}>${s.label}</option>`
             ).join("")}
           </select>
-          ${o.addressLatitude && o.addressLongitude
-            ? `<a class="btn btn--small" target="_blank" rel="noopener"
-                 href="https://www.google.com/maps/search/?api=1&query=${o.addressLatitude},${o.addressLongitude}">Map</a>`
-            : ""}
+          ${mapLink(o.addressLatitude, o.addressLongitude)}
         </div>
       </div>`
     )
