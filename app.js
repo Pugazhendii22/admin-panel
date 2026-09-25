@@ -10,9 +10,19 @@
 // why there are two. Each has its own dedicated Web app registration (not
 // copy-pasted from the Android app's config), so both are independently
 // revocable/rotatable without touching the mobile app.
-import { catalogFirebaseConfig, secondHandFirebaseConfig } from "./firebase-config.js";
+import {
+  catalogFirebaseConfig,
+  secondHandFirebaseConfig,
+  webPushVapidKey,
+} from "./firebase-config.js";
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import {
+  getMessaging,
+  getToken,
+  onMessage,
+  isSupported as messagingSupported,
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging.js";
 import {
   getAuth,
   signInWithEmailAndPassword,
@@ -28,6 +38,7 @@ import {
   getDocs,
   setDoc,
   where,
+  arrayUnion,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -345,6 +356,7 @@ onAuthStateChanged(auth, async (user) => {
     const panel = el("tab-inspector");
     if (panel) panel.hidden = false;
     startInspectorListener(user.uid);
+    startWebPush(user.uid, "inspectors");
     return;
   }
 
@@ -352,6 +364,7 @@ onAuthStateChanged(auth, async (user) => {
   startOrdersListener();
   loadSecondHandListings();
   loadInspectors();
+  startWebPush(user.uid, "admins");
 });
 
 el("login-form").addEventListener("submit", async (e) => {
@@ -1718,4 +1731,69 @@ if (staffForm) {
     btn.disabled = false;
     if (ok) staffForm.reset();
   });
+}
+
+
+// ---------------------------------------------------------------------------
+// Web push — so staff hear about work without watching the screen
+// ---------------------------------------------------------------------------
+
+// Registers this browser to receive pushes, against the signed-in person's
+// own staff document.
+//
+// `collectionName` is "admins" or "inspectors": the token has to live beside
+// whoever it belongs to, because the functions look them up by role. Tokens
+// are an array for the same reason the phone app keeps one — a person has a
+// laptop and a phone, and a single field means whichever opened the panel
+// last silently takes the notifications from the other.
+async function startWebPush(uid, collectionName) {
+  try {
+    if (!(await messagingSupported())) return;
+
+    if (!webPushVapidKey || webPushVapidKey.startsWith("REPLACE_")) {
+      // Said out loud rather than swallowed: without the key nothing arrives,
+      // and a silent failure here looks exactly like "no orders yet".
+      console.warn(
+        "Web push is off: set webPushVapidKey in firebase-config.js " +
+          "(Firebase console -> Cloud Messaging -> Web Push certificates)."
+      );
+      return;
+    }
+
+    // Asked for only after sign-in, when there is something to notify about.
+    // A permission prompt on a login screen is the one people refuse.
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") return;
+
+    const registration = await navigator.serviceWorker.register(
+      "firebase-messaging-sw.js"
+    );
+    const messaging = getMessaging(catalogApp);
+    const token = await getToken(messaging, {
+      vapidKey: webPushVapidKey,
+      serviceWorkerRegistration: registration,
+    });
+    if (!token) return;
+
+    await updateDoc(doc(db, collectionName, uid), {
+      fcmTokens: arrayUnion(token),
+    });
+
+    // A push landing while the panel is open does not raise a notification on
+    // its own, so it is shown as a toast instead — the same information,
+    // without a system banner over the screen someone is already looking at.
+    onMessage(messaging, (payload) => {
+      const { title, body } = payload.notification || {};
+      toast([title, body].filter(Boolean).join(" — "), "success");
+      // The order list is live already, but a newly placed order only shows
+      // for an admin whose listener covers it.
+      if (payload.data?.kind === "order_placed" && currentRole === "admin") {
+        loadInspectors();
+      }
+    });
+  } catch (err) {
+    // Blocked notifications, no HTTPS, a browser without push. None of it is
+    // worth interrupting the person over: the panel works without pushes.
+    console.warn("Web push unavailable:", err?.message || err);
+  }
 }

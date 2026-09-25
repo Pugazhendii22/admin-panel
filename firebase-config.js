@@ -56,3 +56,13 @@ export const secondHandFirebaseConfig = {
   messagingSenderId: "530574210824",
   appId: "1:530574210824:web:375dc539eddf788eb89ebd",
 };
+
+// Web Push certificate key pair, from the Firebase console:
+//   Project settings -> Cloud Messaging -> Web configuration -> Web Push
+//   certificates -> Generate key pair
+//
+// Safe to ship: it is a public key, and it only lets this origin be issued a
+// push subscription. Without it `getToken` throws and the panel silently
+// never receives anything, so it is checked for explicitly at startup rather
+// than being left to fail quietly.
+export const webPushVapidKey = "REPLACE_WITH_VAPID_PUBLIC_KEY";
