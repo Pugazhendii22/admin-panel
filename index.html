@@ -67,9 +67,10 @@
     </header>
 
     <nav class="tabs">
-      <button class="tab-btn tab-btn--active" data-tab="tab-catalog">Catalog</button>
-      <button class="tab-btn" data-tab="tab-orders">Orders</button>
-      <button class="tab-btn" data-tab="tab-listings">
+      <button class="tab-btn tab-btn--active" data-tab="tab-catalog" data-admin-only="1">Catalog</button>
+      <button class="tab-btn" data-tab="tab-orders" data-admin-only="1">Orders</button>
+      <button class="tab-btn" data-tab="tab-staff" data-admin-only="1">Staff</button>
+      <button class="tab-btn" data-tab="tab-listings" data-admin-only="1">
         <span class="tab-label-long">Second-hand listings</span>
         <span class="tab-label-short">Listings</span>
       </button>
@@ -78,7 +79,7 @@
     <main class="content">
 
       <!-- ----- Catalog tab ----- -->
-      <section id="tab-catalog" class="tab-panel">
+      <section id="tab-catalog" class="tab-panel" data-admin-only="1">
         <div class="panel-header">
           <div>
             <h2>Catalog</h2>
@@ -147,7 +148,7 @@
       </section>
 
       <!-- ----- Orders tab ----- -->
-      <section id="tab-orders" class="tab-panel" hidden>
+      <section id="tab-orders" class="tab-panel" hidden data-admin-only="1">
         <div class="panel-header">
           <div>
             <h2>Orders</h2>
@@ -187,7 +188,7 @@
       </section>
 
       <!-- ----- Second-hand listings tab ----- -->
-      <section id="tab-listings" class="tab-panel" hidden>
+      <section id="tab-listings" class="tab-panel" hidden data-admin-only="1">
         <div class="panel-header">
           <div>
             <h2>Second-hand listings</h2>
@@ -299,6 +300,51 @@
       </div>
     </form>
   </dialog>
+
+  <!-- ===================== Staff (admin only) ===================== -->
+  <section id="tab-staff" class="tab-panel" hidden data-admin-only="1">
+    <div class="card">
+      <h2>Add an inspector</h2>
+      <p class="cell-sub">
+        They sign in here with this email and password. Firebase never shows
+        the password again, so write it down and hand it over now.
+      </p>
+      <form id="staff-form" class="staff-form">
+        <label class="field">
+          <span>Name</span>
+          <input id="staff-name" type="text" required autocomplete="off"
+                 placeholder="e.g. Ravi Kumar" />
+        </label>
+        <label class="field">
+          <span>Email</span>
+          <input id="staff-email" type="email" required autocomplete="off"
+                 placeholder="ravi@example.com" />
+        </label>
+        <label class="field">
+          <span>Password</span>
+          <input id="staff-password" type="text" required minlength="6"
+                 autocomplete="off" placeholder="at least 6 characters" />
+        </label>
+        <button id="staff-submit" type="submit" class="btn btn--primary">
+          Create inspector
+        </button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Inspectors</h2>
+      <div id="staff-list"></div>
+    </div>
+  </section>
+
+  <!-- ===================== Inspector's own screen ===================== -->
+  <section id="tab-inspector" class="tab-panel" hidden>
+    <div class="card">
+      <h2>Your pickups</h2>
+      <p class="cell-sub">Oldest first. Change the stage as you go.</p>
+      <div id="inspector-list"></div>
+    </div>
+  </section>
 
   <!-- ===================== Order details ===================== -->
   <dialog id="order-modal" class="modal">

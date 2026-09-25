@@ -838,3 +838,70 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
     width: auto;
   }
 }
+
+/* Staff + inspector screens. */
+.staff-form {
+  display: grid;
+  gap: 10px;
+  max-width: 420px;
+}
+
+.staff-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.staff-item:last-child { border-bottom: 0; }
+
+.assign-select {
+  font: inherit;
+  font-size: 0.84rem;
+  min-height: 38px;
+  padding: 6px 8px;
+  margin-top: 6px;
+  max-width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+/* The inspector's job list: cards, not a table. They read this one-handed,
+   outdoors, on a phone. */
+.job-card {
+  padding: 14px;
+  margin-bottom: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.job-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.job-card__payout {
+  margin: 6px 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.job-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.job-card__actions .status-select {
+  flex: 1 1 160px;
+  min-height: 44px;
+}

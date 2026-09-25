@@ -16,6 +16,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/fireba
 import {
   getAuth,
   signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   onAuthStateChanged,
   signOut,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
@@ -25,6 +26,8 @@ import {
   doc,
   getDoc,
   getDocs,
+  setDoc,
+  where,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -52,6 +55,16 @@ const db = getFirestore(catalogApp);
 // anyway. This is wired up purely so second-hand listings aren't invisible
 // to the admin.
 const secondHandApp = initializeApp(secondHandFirebaseConfig, "secondHand");
+
+// A third connection to the SAME project as `catalog`, used only to create
+// staff accounts.
+//
+// createUserWithEmailAndPassword signs the new user in on whatever auth
+// instance it is given — so calling it on the admin's own connection would
+// silently swap the admin's session for the inspector's, mid-task. A separate
+// app has a separate session to throw away.
+const staffApp = initializeApp(catalogFirebaseConfig, "staffMaker");
+const staffAuth = getAuth(staffApp);
 const secondHandDb = getFirestore(secondHandApp);
 
 // ---------------------------------------------------------------------------
@@ -267,6 +280,9 @@ function saveModelsCache(brandId) {
 // Auth
 // ---------------------------------------------------------------------------
 let ordersUnsub = null;
+let currentRole = null;
+let inspectorUnsub = null;
+let inspectors = [];
 
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
@@ -292,11 +308,22 @@ onAuthStateChanged(auth, async (user) => {
     isAdmin = false;
   }
 
+  // Not an admin? They may still be an inspector, who gets a much smaller
+  // screen: the pickups assigned to them, and nothing else.
+  let isInspector = false;
   if (!isAdmin) {
+    try {
+      const doc_ = await getDoc(doc(db, "inspectors", user.uid));
+      isInspector = doc_.exists();
+    } catch (e) {
+      isInspector = false;
+    }
+  }
+
+  if (!isAdmin && !isInspector) {
     el("login-error").textContent =
-      "This account is signed in but is not on the admin list. " +
-      "Add its UID to the admins collection (see README.md), or sign in " +
-      "with an admin account.";
+      "This account is signed in but is not on the admin or inspector list. " +
+      "Ask an admin to add it, or sign in with an admin account.";
     el("login-error").hidden = false;
     await signOut(auth);
     return;
@@ -304,10 +331,27 @@ onAuthStateChanged(auth, async (user) => {
 
   el("login-error").hidden = true;
   el("admin-email").textContent = user.email;
+  currentRole = isAdmin ? "admin" : "inspector";
   showApp();
+
+  if (isInspector) {
+    // An inspector must not see the catalog, the pricing, or other people's
+    // jobs, so the admin tabs are removed from the DOM rather than hidden —
+    // a hidden tab is one devtools click from visible.
+    document.body.classList.add("role-inspector");
+    document
+      .querySelectorAll('[data-admin-only="1"]')
+      .forEach((n) => n.remove());
+    const panel = el("tab-inspector");
+    if (panel) panel.hidden = false;
+    startInspectorListener(user.uid);
+    return;
+  }
+
   loadModelsForSelectedBrand();
   startOrdersListener();
   loadSecondHandListings();
+  loadInspectors();
 });
 
 el("login-form").addEventListener("submit", async (e) => {
@@ -1187,12 +1231,24 @@ function renderOrders(orders) {
         <select class="status-select" data-order-id="${escapeHtml(o.id)}">
           ${ORDER_STAGES.map((s) => `<option value="${s.value}" ${s.value === (o.status || "placed") ? "selected" : ""}>${s.label}</option>`).join("")}
         </select>
+        <select class="assign-select" data-assign-order="${escapeHtml(o.id)}">
+          <option value="">Unassigned</option>
+          ${inspectors.map((i) => `<option value="${escapeHtml(i.id)}" ${i.id === o.inspectorId ? "selected" : ""}>${escapeHtml(i.name || i.email || i.id)}</option>`).join("")}
+        </select>
       </td>
       <td class="cell-actions">
         <button class="btn btn--small" data-action="view-order" data-id="${escapeHtml(o.id)}">Details</button>
       </td>
     </tr>
   `).join("");
+
+  tbody.querySelectorAll(".assign-select").forEach((sel) => {
+    sel.addEventListener("change", async () => {
+      sel.disabled = true;
+      await assignInspector(sel.dataset.assignOrder, sel.value);
+      sel.disabled = false;
+    });
+  });
 
   tbody.querySelectorAll(".status-select").forEach((sel) => {
     sel.addEventListener("change", async () => {
@@ -1235,6 +1291,7 @@ const HANDLED = new Set([
   "id", "modelName", "brand", "storage", "imageUrl", "modelDocId",
   "basePrice", "finalPayout", "quote", "quoteValidUntil",
   "status", "createdAt", "updatedAt", "userId", "reference",
+  "inspectorId", "inspectorName",
   "addressLabel", "addressFullText", "addressLatitude", "addressLongitude",
 ]);
 
@@ -1298,6 +1355,7 @@ function showOrderDetails(order) {
   out.push(heading("Status"));
   // First, because it is what the caller on the phone will have quoted.
   if (order.reference) out.push(row("Reference", order.reference));
+  if (order.inspectorName) out.push(row("Inspector", order.inspectorName));
   out.push(row("Stage", ORDER_STAGES.find((s) => s.value === order.status)?.label || order.status || "placed"));
   if (order.createdAt) out.push(row("Placed", formatDate(order.createdAt)));
   if (order.updatedAt) out.push(row("Last updated", formatDate(order.updatedAt)));
@@ -1437,3 +1495,205 @@ window.addEventListener("appinstalled", () => {
   installBtn.hidden = true;
   toast("Installed — open it from your home screen.", "success");
 });
+
+
+// ---------------------------------------------------------------------------
+// Staff — inspectors
+// ---------------------------------------------------------------------------
+
+// Creates a login for a pickup inspector.
+//
+// The password is chosen by the admin and handed over in person, which is the
+// whole brief. Firebase never reveals it again, so the admin has to give it to
+// the inspector at the moment of creation — the UI says so plainly rather than
+// letting them discover it later.
+async function createInspector(name, email, password) {
+  let credential;
+  try {
+    // On `staffAuth`, never the admin's own connection: this call signs the
+    // new user in, and doing that on `auth` would swap the admin's session.
+    credential = await createUserWithEmailAndPassword(staffAuth, email, password);
+  } catch (err) {
+    const known = {
+      "auth/email-already-in-use": "That email already has an account.",
+      "auth/invalid-email": "That email address is not valid.",
+      "auth/weak-password": "Password must be at least 6 characters.",
+    };
+    toast(known[err.code] || "Could not create the account.", "error");
+    return false;
+  }
+
+  const uid = credential.user.uid;
+  try {
+    await setDoc(doc(db, "inspectors", uid), {
+      name,
+      email,
+      createdAt: serverTimestamp(),
+      active: true,
+    });
+    // Mirrored onto the user record so the phone app can tell staff from
+    // sellers without a second read.
+    await setDoc(doc(db, "users", uid), { name, email, role: "inspector" }, { merge: true });
+  } catch (err) {
+    toast(
+      "Account made, but saving their details failed: " + err.message,
+      "error"
+    );
+    return false;
+  } finally {
+    // The new user is signed in on the throwaway connection. Drop it, or the
+    // next staff account is created while pretending to be this one.
+    try { await signOut(staffAuth); } catch {}
+  }
+
+  toast(`Inspector "${name}" added`, "success");
+  await loadInspectors();
+  return true;
+}
+
+async function loadInspectors() {
+  try {
+    const snap = await getDocs(collection(db, "inspectors"));
+    inspectors = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    inspectors = [];
+  }
+  renderInspectors();
+}
+
+function renderInspectors() {
+  const host = el("staff-list");
+  if (!host) return;
+  if (inspectors.length === 0) {
+    host.innerHTML = `<p class="empty">No inspectors yet.</p>`;
+    return;
+  }
+  host.innerHTML = inspectors
+    .map(
+      (i) => `
+      <div class="staff-item">
+        <div class="cell-main--full">
+          <div class="cell-title">${escapeHtml(i.name || "Unnamed")}</div>
+          <div class="cell-sub">${escapeHtml(i.email || "")}</div>
+        </div>
+        <span class="badge badge--${i.active === false ? "warning" : "success"}">
+          ${i.active === false ? "Inactive" : "Active"}
+        </span>
+      </div>`
+    )
+    .join("");
+}
+
+// --- Assigning a pickup -----------------------------------------------------
+
+async function assignInspector(orderId, inspectorId) {
+  const chosen = inspectors.find((i) => i.id === inspectorId);
+  try {
+    await updateDoc(doc(db, "orders", orderId), {
+      inspectorId: inspectorId || deleteField(),
+      inspectorName: chosen ? chosen.name : deleteField(),
+      updatedAt: serverTimestamp(),
+    });
+    toast(chosen ? `Assigned to ${chosen.name}` : "Assignment cleared", "success");
+  } catch (err) {
+    toast("Could not assign: " + err.message, "error");
+  }
+}
+
+// --- The inspector's own screen ---------------------------------------------
+
+function startInspectorListener(uid) {
+  const q = query(collection(db, "orders"), where("inspectorId", "==", uid));
+  inspectorUnsub = onSnapshot(
+    q,
+    (snap) => {
+      const mine = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderInspectorJobs(mine);
+    },
+    (err) => {
+      const host = el("inspector-list");
+      if (host) {
+        host.innerHTML = `<p class="empty">Could not load your pickups: ${escapeHtml(err.message)}</p>`;
+      }
+    }
+  );
+}
+
+function renderInspectorJobs(orders) {
+  const host = el("inspector-list");
+  if (!host) return;
+  if (orders.length === 0) {
+    host.innerHTML = `<p class="empty">Nothing assigned to you right now.</p>`;
+    return;
+  }
+
+  // Soonest-placed first: the oldest job is the one keeping someone waiting.
+  orders.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+
+  host.innerHTML = orders
+    .map(
+      (o) => `
+      <div class="job-card">
+        <div class="job-card__head">
+          <span class="mono">${escapeHtml(o.reference || o.id.slice(0, 8))}</span>
+          <span class="badge badge--${o.status === "paid" ? "success" : "warning"}">
+            ${escapeHtml(ORDER_STAGES.find((s) => s.value === o.status)?.label || o.status || "placed")}
+          </span>
+        </div>
+        <div class="cell-title">${escapeHtml(o.modelName || "Device")}</div>
+        <div class="cell-sub">${escapeHtml([o.brand, o.storage].filter(Boolean).join(" · "))}</div>
+        <div class="job-card__payout">${money(o.finalPayout)}</div>
+        ${o.addressFullText ? `<div class="cell-sub">${escapeHtml(o.addressFullText)}</div>` : ""}
+        <div class="job-card__actions">
+          <select class="status-select" data-job-id="${escapeHtml(o.id)}">
+            ${ORDER_STAGES.map(
+              (s) => `<option value="${s.value}" ${s.value === (o.status || "placed") ? "selected" : ""}>${s.label}</option>`
+            ).join("")}
+          </select>
+          ${o.addressLatitude && o.addressLongitude
+            ? `<a class="btn btn--small" target="_blank" rel="noopener"
+                 href="https://www.google.com/maps/search/?api=1&query=${o.addressLatitude},${o.addressLongitude}">Map</a>`
+            : ""}
+        </div>
+      </div>`
+    )
+    .join("");
+
+  host.querySelectorAll("[data-job-id]").forEach((sel) => {
+    sel.addEventListener("change", async () => {
+      sel.disabled = true;
+      try {
+        await updateDoc(doc(db, "orders", sel.dataset.jobId), {
+          status: sel.value,
+          updatedAt: serverTimestamp(),
+        });
+        toast("Status updated", "success");
+      } catch (err) {
+        toast("Could not update: " + err.message, "error");
+      } finally {
+        sel.disabled = false;
+      }
+    });
+  });
+}
+
+// --- Staff form wiring ------------------------------------------------------
+
+const staffForm = el("staff-form");
+if (staffForm) {
+  staffForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = el("staff-name").value.trim();
+    const email = el("staff-email").value.trim();
+    const password = el("staff-password").value;
+    if (!name || !email || password.length < 6) {
+      toast("Name, email and a password of 6+ characters are required.", "error");
+      return;
+    }
+    const btn = el("staff-submit");
+    btn.disabled = true;
+    const ok = await createInspector(name, email, password);
+    btn.disabled = false;
+    if (ok) staffForm.reset();
+  });
+}
