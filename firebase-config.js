@@ -65,4 +65,5 @@ export const secondHandFirebaseConfig = {
 // push subscription. Without it `getToken` throws and the panel silently
 // never receives anything, so it is checked for explicitly at startup rather
 // than being left to fail quietly.
-export const webPushVapidKey = "REPLACE_WITH_VAPID_PUBLIC_KEY";
+export const webPushVapidKey =
+  "BBvodiNxTjFM9-u7AwgHq2ktVuetbSudmHRYmq9T1EuHGQJgme9RdoXdp3zNcc37uOoCXIIBipQYiI0nhUPLFL8";
