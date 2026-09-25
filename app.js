@@ -212,6 +212,32 @@ function knownStorageOptions() {
   return [...out].sort(compareStorage);
 }
 
+// The configurations this phone actually shipped in, off its own spec sheet.
+//
+// `specs.internal_storage_note` holds them as one comma-separated string —
+// "64GB 4GB RAM, 128GB 4GB RAM, 256GB 4GB RAM" — which is exactly the list an
+// admin was otherwise retyping by hand for every model. It is already loaded
+// with the model document, so reading it costs nothing.
+//
+// Returns [] when the field is missing or unparseable, which is common enough
+// on older imports that it must stay ordinary rather than an error.
+function specVariants(model) {
+  const note = model?.specs?.internal_storage_note;
+  if (typeof note !== "string") return [];
+  const seen = new Set();
+  const out = [];
+  for (const part of note.split(",")) {
+    const value = part.trim().replace(/\s+/g, " ");
+    // Guard against a note that is prose rather than a list.
+    if (!value || value.length > 40 || !/\d/.test(value)) continue;
+    const key = value.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out.sort(compareStorage);
+}
+
 function rememberStorageOptions(values) {
   const out = new Set(knownStorageOptions());
   for (const v of values) {
@@ -703,8 +729,11 @@ async function renderVariantPanel(brandId, modelId) {
           </div>
         `).join("")}
     </div>
+    ${suggestionBlock(brandId, modelId, variants)}
     <button class="btn btn--small btn--primary" data-add-variant="1">+ Add variant</button>
   `;
+
+  wireSuggestions(brandId, modelId);
 
   host.querySelectorAll("[data-vaction]").forEach((btn) => {
     const vid = btn.dataset.vid;
@@ -718,6 +747,123 @@ async function renderVariantPanel(brandId, modelId) {
   host.querySelector("[data-add-variant]").addEventListener("click", () => {
     openVariantForm(brandId, modelId, null);
   });
+}
+
+
+// The variants this phone shipped with that have not been created yet.
+//
+// The whole point of the feature: the spec sheet already lists them, so the
+// admin should be filling in prices rather than retyping configurations and
+// introducing a new spelling of "128GB 8GB RAM" each time.
+function missingSpecVariants(modelId, variants) {
+  const model = allModels.find((m) => m.id === modelId);
+  const have = new Set(
+    variants.map((v) => (v.storage || "").trim().toLowerCase()).filter(Boolean)
+  );
+  return specVariants(model).filter((v) => !have.has(v.toLowerCase()));
+}
+
+function suggestionBlock(brandId, modelId, variants) {
+  const missing = missingSpecVariants(modelId, variants);
+  if (missing.length === 0) return "";
+
+  return `
+    <div class="spec-suggest">
+      <div class="spec-suggest__head">
+        <strong>From the spec sheet</strong>
+        <span class="cell-sub">${missing.length} not added yet — set a price to add</span>
+      </div>
+      ${missing.map((v, i) => `
+        <div class="spec-suggest__row" data-spec-row="${i}">
+          <span class="spec-suggest__name">${escapeHtml(v)}</span>
+          <input class="spec-suggest__price" type="number" min="0" step="1"
+                 inputmode="numeric" placeholder="₹ price"
+                 data-spec-price="${escapeHtml(v)}" />
+          <button class="btn btn--tiny btn--primary" data-spec-add="${escapeHtml(v)}">Add</button>
+        </div>
+      `).join("")}
+      ${missing.length > 1
+        ? `<button class="btn btn--small" data-spec-add-all="1">Add all priced</button>`
+        : ""}
+    </div>
+  `;
+}
+
+function wireSuggestions(brandId, modelId) {
+  const host = el(`variants-${modelId}`);
+
+  const priceFor = (storage) => {
+    const input = host.querySelector(`[data-spec-price="${CSS.escape(storage)}"]`);
+    const value = Number(input?.value);
+    return Number.isFinite(value) && value > 0 ? value : null;
+  };
+
+  host.querySelectorAll("[data-spec-add]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const storage = btn.dataset.specAdd;
+      const price = priceFor(storage);
+      if (price === null) {
+        toast(`Enter a price for ${storage} first.`, "error");
+        return;
+      }
+      addSpecVariants(brandId, modelId, [{ storage, price }]);
+    });
+  });
+
+  const addAll = host.querySelector("[data-spec-add-all]");
+  if (addAll) {
+    addAll.addEventListener("click", () => {
+      // Only the rows actually given a price. Adding a variant at ₹0 would
+      // quote a seller nothing for a working phone.
+      const rows = [...host.querySelectorAll("[data-spec-price]")]
+        .map((input) => ({
+          storage: input.dataset.specPrice,
+          price: priceFor(input.dataset.specPrice),
+        }))
+        .filter((r) => r.price !== null);
+
+      if (rows.length === 0) {
+        toast("Enter a price on at least one row first.", "error");
+        return;
+      }
+      addSpecVariants(brandId, modelId, rows);
+    });
+  }
+}
+
+// Writes several variants at once, in a single batch.
+//
+// One batch rather than a loop of addDoc: adding four variants should either
+// all land or none, so a failure halfway cannot leave a phone priced for two
+// of its four configurations.
+async function addSpecVariants(brandId, modelId, rows) {
+  const path = collection(db, "brands", brandId, "models", modelId, "variants");
+  try {
+    const batch = writeBatch(db);
+    const added = [];
+    for (const { storage, price } of rows) {
+      const ref = doc(path);
+      batch.set(ref, { storage, base_price: price });
+      added.push({ id: ref.id, storage, base_price: price });
+    }
+    await batch.commit();
+
+    const cached = (await fetchVariants(brandId, modelId)).slice();
+    cached.push(...added);
+    cacheSet(variantsKey(brandId, modelId), cached);
+    rememberStorageOptions(added.map((v) => v.storage));
+
+    toast(
+      added.length === 1
+        ? `Added "${added[0].storage}"`
+        : `Added ${added.length} variants`,
+      "success"
+    );
+    await renderVariantPanel(brandId, modelId);
+    refreshVariantSummary(brandId, modelId);
+  } catch (err) {
+    toast("Could not add variants: " + err.message, "error");
+  }
 }
 
 // --- Add / edit variant modal ----------------------------------------------
@@ -758,7 +904,12 @@ function fillStorageOptions(brandId, modelId) {
     if (self) taken.delete((self.storage || "").trim());
   }
 
-  const picks = all.filter((v) => !taken.has(v)).slice(0, 8);
+  // This phone's own configurations first, then spellings used elsewhere in
+  // the catalog. The spec sheet is the better answer when it has one.
+  const model = allModels.find((m) => m.id === modelId);
+  const own = specVariants(model);
+  const ordered = [...own, ...all.filter((v) => !own.includes(v))];
+  const picks = ordered.filter((v) => !taken.has(v)).slice(0, 8);
   const host = el("variant-storage-picks");
   host.hidden = picks.length === 0;
   host.innerHTML = picks

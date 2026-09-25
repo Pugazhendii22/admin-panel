@@ -770,3 +770,71 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
   outline: 2px solid var(--primary-dark);
   outline-offset: 2px;
 }
+
+/* Variants the phone shipped with, read off its own spec sheet and offered
+   with a price box so the admin fills in the number rather than retyping the
+   configuration. */
+.spec-suggest {
+  margin: 10px 0 14px;
+  padding: 12px;
+  background: var(--primary-soft);
+  border-radius: var(--radius-sm);
+}
+
+.spec-suggest__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: var(--on-primary-soft);
+}
+
+.spec-suggest__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.spec-suggest__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.88rem;
+  /* Long configurations truncate rather than pushing the price box off a
+     phone screen. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spec-suggest__price {
+  flex: 0 0 96px;
+  width: 96px;
+  min-height: 38px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 0.88rem;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.spec-suggest__price:focus-visible {
+  outline: 2px solid var(--primary-dark);
+  outline-offset: 1px;
+}
+
+@media (max-width: 380px) {
+  /* Below this the three columns stop fitting; the name takes its own line. */
+  .spec-suggest__row {
+    flex-wrap: wrap;
+  }
+  .spec-suggest__name {
+    flex: 1 0 100%;
+  }
+  .spec-suggest__price {
+    flex: 1 1 auto;
+    width: auto;
+  }
+}
