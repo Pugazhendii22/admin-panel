@@ -1385,7 +1385,7 @@ const HANDLED = new Set([
   "id", "modelName", "brand", "storage", "imageUrl", "modelDocId",
   "basePrice", "finalPayout", "quote", "quoteValidUntil",
   "status", "createdAt", "updatedAt", "userId", "reference",
-  "inspectorId", "inspectorName",
+  "inspectorId", "inspectorName", "inspection",
   "addressLabel", "addressFullText", "addressLatitude", "addressLongitude",
 ]);
 
@@ -1450,6 +1450,15 @@ function showOrderDetails(order) {
   // First, because it is what the caller on the phone will have quoted.
   if (order.reference) out.push(row("Reference", order.reference));
   if (order.inspectorName) out.push(row("Inspector", order.inspectorName));
+  if (order.inspection) {
+    const c = Number(order.inspection.confirmedPayout);
+    const q = Number(order.finalPayout);
+    out.push(row(
+      Number.isFinite(c) && c !== q ? "Settled at (adjusted)" : "Settled at",
+      Number.isFinite(c) ? money(c) : "—"
+    ));
+    if (order.inspection.reason) out.push(row("Reason", order.inspection.reason));
+  }
   out.push(row("Stage", ORDER_STAGES.find((s) => s.value === order.status)?.label || order.status || "placed"));
   if (order.createdAt) out.push(row("Placed", formatDate(order.createdAt)));
   if (order.updatedAt) out.push(row("Last updated", formatDate(order.updatedAt)));
@@ -1909,6 +1918,119 @@ function checkupBlock(order) {
     </details>`;
 }
 
+// Confirming what the phone is actually worth, at the door.
+//
+// The app tells sellers "the final amount is confirmed when the agent inspects
+// the phone at pickup". Until now nothing could record that, so the promise had
+// no mechanism behind it and an inspector could only move the status along.
+//
+// The quote is never edited. A finding sits beside it, carrying who said so and
+// when, so the two figures disagree in the open rather than one silently
+// replacing the other — which is the difference between a dispute and a
+// rewrite.
+function inspectionBlock(order) {
+  const quoted = Number(order.finalPayout) || 0;
+  const done = order.inspection;
+
+  if (done) {
+    const confirmed = Number(done.confirmedPayout) || 0;
+    const changed = confirmed !== quoted;
+    return `
+      <div class="inspection inspection--done">
+        <div class="inspection__head">
+          ${changed ? "Adjusted" : "Confirmed"} at <strong>${money(confirmed)}</strong>
+          ${changed ? `<span class="cell-sub">quoted ${money(quoted)}</span>` : ""}
+        </div>
+        ${done.reason ? `<div class="cell-sub">${escapeHtml(String(done.reason))}</div>` : ""}
+      </div>`;
+  }
+
+  return `
+    <div class="inspection" data-inspect="${escapeHtml(order.id)}">
+      <div class="inspection__head">Confirm the amount</div>
+      <div class="inspection__row">
+        <input class="inspection__amount" type="number" min="0" step="1"
+               inputmode="numeric" value="${quoted}"
+               data-amount="${escapeHtml(order.id)}" />
+        <button class="btn btn--small btn--primary"
+                data-confirm="${escapeHtml(order.id)}">Confirm</button>
+      </div>
+      <input class="inspection__reason" type="text" maxlength="200"
+             placeholder="Reason — required if you change the amount"
+             data-reason="${escapeHtml(order.id)}" hidden />
+      <div class="cell-sub">Quoted ${money(quoted)}. Change it only if the phone is not as described.</div>
+    </div>`;
+}
+
+function wireInspection(host, orders) {
+  host.querySelectorAll("[data-amount]").forEach((input) => {
+    const id = input.dataset.amount;
+    const order = orders.find((o) => o.id === id);
+    const reason = host.querySelector(`[data-reason="${CSS.escape(id)}"]`);
+    // The reason box appears the moment the number stops matching the quote,
+    // rather than being a permanently visible field nobody fills in.
+    input.addEventListener("input", () => {
+      const changed = Number(input.value) !== (Number(order?.finalPayout) || 0);
+      reason.hidden = !changed;
+    });
+  });
+
+  host.querySelectorAll("[data-confirm]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.confirm;
+      const order = orders.find((o) => o.id === id);
+      const quoted = Number(order?.finalPayout) || 0;
+      const amount = Number(
+        host.querySelector(`[data-amount="${CSS.escape(id)}"]`)?.value
+      );
+      const reason = (
+        host.querySelector(`[data-reason="${CSS.escape(id)}"]`)?.value || ""
+      ).trim();
+
+      if (!Number.isFinite(amount) || amount < 0) {
+        toast("Enter the amount you are paying.", "error");
+        return;
+      }
+      // Mirrors the rule rather than trusting it to be hit: a refusal from
+      // Firestore reaches the inspector as an unexplained failure, and they
+      // are standing in somebody's doorway.
+      if (amount !== quoted && reason.length < 10) {
+        toast("Say why the amount is different — a few words is enough.", "error");
+        return;
+      }
+      if (
+        amount !== quoted &&
+        !confirm(
+          `Pay ${money(amount)} instead of the quoted ${money(quoted)}?\n\n` +
+            `The seller is told the new amount and your reason.`
+        )
+      ) {
+        return;
+      }
+
+      btn.disabled = true;
+      try {
+        await updateDoc(doc(db, "orders", id), {
+          inspection: {
+            confirmedPayout: amount,
+            quotedPayout: quoted,
+            inspectorId: auth.currentUser.uid,
+            at: serverTimestamp(),
+            ...(reason ? { reason } : {}),
+          },
+          status: "inspection",
+          updatedAt: serverTimestamp(),
+        });
+        toast("Recorded", "success");
+      } catch (err) {
+        toast("Could not record that: " + err.message, "error");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
 function renderInspectorJobs(orders) {
   const host = el("inspector-list");
   if (!host) return;
@@ -1941,6 +2063,7 @@ function renderInspectorJobs(orders) {
         ${pickupBlock(o)}
         ${conditionBlock(o)}
         ${checkupBlock(o)}
+        ${inspectionBlock(o)}
         <div class="job-card__actions">
           <select class="status-select" data-job-id="${escapeHtml(o.id)}">
             ${ORDER_STAGES.map(
@@ -1953,6 +2076,8 @@ function renderInspectorJobs(orders) {
       </div>`
     )
     .join("");
+
+  wireInspection(host, orders);
 
   host.querySelectorAll("[data-job-id]").forEach((sel) => {
     sel.addEventListener("change", async () => {

@@ -980,3 +980,64 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
 .empty--error {
   color: var(--error);
 }
+
+/* Confirming the amount at the door. */
+.inspection {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--primary-soft);
+  border-radius: var(--radius-sm);
+}
+
+.inspection--done { background: var(--success-soft); }
+
+.inspection__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--on-primary-soft);
+}
+
+.inspection--done .inspection__head { color: var(--text); }
+
+.inspection__row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.inspection__amount {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* 44px, because this is typed outdoors on a phone with one hand. */
+  min-height: 44px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.inspection__reason {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  font: inherit;
+  font-size: 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-sm);
+}
+
+.inspection__amount:focus-visible,
+.inspection__reason:focus-visible {
+  outline: 2px solid var(--primary-dark);
+  outline-offset: 1px;
+}
