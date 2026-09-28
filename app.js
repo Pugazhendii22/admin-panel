@@ -1572,6 +1572,13 @@ async function loadInspectors() {
     inspectors = [];
   }
   renderInspectors();
+  // Every order row builds its assignment dropdown from `inspectors`, so a
+  // newly added colleague is invisible in those dropdowns until the table is
+  // rebuilt. Without this the only way to assign to them was to sign out and
+  // back in, which is how this was found.
+  if (currentRole === "admin" && lastOrders.length > 0) {
+    renderOrders(lastOrders);
+  }
 }
 
 function renderInspectors() {
@@ -1653,8 +1660,138 @@ function mapLink(lat, lng) {
   if (!Number.isFinite(y) || !Number.isFinite(x)) return "";
   if (y < -90 || y > 90 || x < -180 || x > 180) return "";
   const q = encodeURIComponent(`${y},${x}`);
-  return `<a class="btn btn--small" target="_blank" rel="noopener"
-             href="https://www.google.com/maps/search/?api=1&query=${q}">Map</a>`;
+  // Directions rather than a plain pin: this opens the Maps app on a phone
+  // with the route already drawn from wherever the inspector is standing, so
+  // the distance and drive time are on screen without them typing anything.
+  // `travelmode=driving` because they are going by road with a phone to
+  // collect.
+  return `<a class="btn btn--small btn--primary" target="_blank" rel="noopener"
+             href="https://www.google.com/maps/dir/?api=1&destination=${q}&travelmode=driving">Directions</a>`;
+}
+
+// What the seller said was wrong with the phone, and what it cost them.
+//
+// This is the whole point of the inspector's visit: they are checking these
+// specific claims against the handset in their hand. Without it they arrive
+// knowing only the model and the price, and have to ring the office to find
+// out what was declared.
+// Where to go, who to ask for, and when it was placed.
+//
+// Every field here is already on the order document, so the whole block costs
+// nothing to render. The customer's name is copied onto the order at checkout
+// for exactly that reason — looking it up from `users/{uid}` would be one read
+// per job, every time this screen opened.
+// A tel: link, because the usual reason a pickup fails is nobody answering the
+// door and the inspector having no way to ring ahead.
+//
+// Stripped to digits and a leading plus before it goes in the href: the number
+// came from a user profile, so it is not trusted to be a number, and anything
+// else in an href is an injection waiting to happen.
+function callLink(phone) {
+  if (!phone) return "";
+  const digits = String(phone).replace(/[^\d+]/g, "");
+  if (digits.length < 6) return "";
+  return `<a class="btn btn--small" href="tel:${encodeURIComponent(digits)}">Call</a>`;
+}
+
+function pickupBlock(order) {
+  const rows = [];
+
+  const who = [order.customerName, order.customerPhone]
+    .filter(Boolean)
+    .map((v) => escapeHtml(String(v)));
+  if (who.length) {
+    rows.push(`<div class="job-card__who">${who.join(" · ")}</div>`);
+  }
+
+  if (order.addressFullText || order.addressLabel) {
+    const label = order.addressLabel
+      ? `<strong>${escapeHtml(String(order.addressLabel))}</strong> · `
+      : "";
+    rows.push(
+      `<div class="job-card__address">${label}${escapeHtml(String(order.addressFullText || ""))}</div>`
+    );
+  }
+
+  if (order.createdAt) {
+    rows.push(`<div class="cell-sub">Placed ${escapeHtml(formatDate(order.createdAt))}</div>`);
+  }
+
+  return rows.join("");
+}
+
+function conditionBlock(order) {
+  const lines = Array.isArray(order.quote?.lines) ? order.quote.lines : [];
+  if (lines.length === 0) return "";
+
+  // Only the deductions. A line worth nothing was answered in the phone's
+  // favour and is not something to go and verify.
+  const faults = lines.filter((l) => Number(l.amount) > 0);
+
+  return `
+    <details class="job-detail" open>
+      <summary>Seller declared${faults.length ? ` — ${faults.length} to check` : " — nothing wrong"}</summary>
+      ${lines
+        .map(
+          (l) => `
+        <div class="job-detail__row ${Number(l.amount) > 0 ? "job-detail__row--fault" : ""}">
+          <span class="job-detail__what">
+            ${escapeHtml(String(l.category || ""))}
+            <span class="cell-sub">${escapeHtml(String(l.choice || ""))}</span>
+          </span>
+          <span class="job-detail__cost">${
+            Number(l.amount) > 0 ? "-" + money(Number(l.amount)) : "—"
+          }</span>
+        </div>`
+        )
+        .join("")}
+      ${order.quote?.basePrice
+        ? `<div class="job-detail__row job-detail__row--total">
+             <span>Base ${money(Number(order.quote.basePrice))}</span>
+             <span>${money(Number(order.quote.finalPayout))}</span>
+           </div>`
+        : ""}
+    </details>`;
+}
+
+// What the phone said about itself, when the seller ran the automatic check.
+//
+// Failures first and open by default; passes collapsed behind a count. An
+// inspector needs to know what to look at, not read twenty green ticks.
+function checkupBlock(order) {
+  const results = Array.isArray(order.checkup) ? order.checkup : [];
+  if (results.length === 0) return "";
+
+  const failed = results.filter((r) => r.status === "fail");
+  const skipped = results.filter((r) => r.status === "skipped");
+  const passed = results.filter((r) => r.status === "pass");
+
+  return `
+    <details class="job-detail" ${failed.length ? "open" : ""}>
+      <summary>
+        Phone self-check —
+        ${failed.length} failed, ${passed.length} passed${
+          skipped.length ? `, ${skipped.length} skipped` : ""
+        }
+      </summary>
+      ${[...failed, ...skipped]
+        .map(
+          (r) => `
+        <div class="job-detail__row ${r.status === "fail" ? "job-detail__row--fault" : ""}">
+          <span class="job-detail__what">
+            ${escapeHtml(String(r.title || r.key || ""))}
+            ${r.detail ? `<span class="cell-sub">${escapeHtml(String(r.detail))}</span>` : ""}
+          </span>
+          <span class="job-detail__cost">${r.status === "fail" ? "FAIL" : "skipped"}</span>
+        </div>`
+        )
+        .join("")}
+      ${passed.length
+        ? `<div class="cell-sub job-detail__passed">Passed: ${passed
+            .map((r) => escapeHtml(String(r.title || r.key || "")))
+            .join(", ")}</div>`
+        : ""}
+    </details>`;
 }
 
 function renderInspectorJobs(orders) {
@@ -1681,7 +1818,9 @@ function renderInspectorJobs(orders) {
         <div class="cell-title">${escapeHtml(o.modelName || "Device")}</div>
         <div class="cell-sub">${escapeHtml([o.brand, o.storage].filter(Boolean).join(" · "))}</div>
         <div class="job-card__payout">${money(o.finalPayout)}</div>
-        ${o.addressFullText ? `<div class="cell-sub">${escapeHtml(o.addressFullText)}</div>` : ""}
+        ${pickupBlock(o)}
+        ${conditionBlock(o)}
+        ${checkupBlock(o)}
         <div class="job-card__actions">
           <select class="status-select" data-job-id="${escapeHtml(o.id)}">
             ${ORDER_STAGES.map(
@@ -1689,6 +1828,7 @@ function renderInspectorJobs(orders) {
             ).join("")}
           </select>
           ${mapLink(o.addressLatitude, o.addressLongitude)}
+          ${callLink(o.customerPhone)}
         </div>
       </div>`
     )
@@ -1785,11 +1925,11 @@ async function startWebPush(uid, collectionName) {
     onMessage(messaging, (payload) => {
       const { title, body } = payload.notification || {};
       toast([title, body].filter(Boolean).join(" — "), "success");
-      // The order list is live already, but a newly placed order only shows
-      // for an admin whose listener covers it.
-      if (payload.data?.kind === "order_placed" && currentRole === "admin") {
-        loadInspectors();
-      }
+      // Nothing is re-fetched here on purpose. The orders table is already on
+      // a live snapshot, so a new order arrives through that listener for
+      // free; re-reading the inspector collection on every push would have
+      // billed a whole collection read per notification for a list that had
+      // not changed.
     });
   } catch (err) {
     // Blocked notifications, no HTTPS, a browser without push. None of it is

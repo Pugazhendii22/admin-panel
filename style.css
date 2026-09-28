@@ -905,3 +905,66 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
   flex: 1 1 160px;
   min-height: 44px;
 }
+
+/* Pickup details on an inspector's job card. */
+.job-card__who {
+  margin-top: 6px;
+  font-weight: 600;
+}
+
+.job-card__address {
+  margin: 4px 0 6px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  /* Wraps rather than truncating: a half-shown address is useless to someone
+     trying to find a door. */
+  overflow-wrap: anywhere;
+}
+
+/* Declared condition and self-check results. */
+.job-detail {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+}
+
+.job-detail > summary {
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 600;
+  /* A 44px row, so it can be opened with a thumb outdoors. */
+  padding: 8px 0;
+}
+
+.job-detail__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 0.86rem;
+  border-top: 1px solid var(--border);
+}
+
+.job-detail__what { min-width: 0; }
+.job-detail__what .cell-sub { display: block; }
+
+.job-detail__cost {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The things to actually go and look at. */
+.job-detail__row--fault .job-detail__cost { color: var(--error); font-weight: 600; }
+.job-detail__row--fault .job-detail__what { font-weight: 600; }
+
+.job-detail__row--total {
+  font-weight: 600;
+  border-top: 1px solid var(--border-strong);
+}
+
+.job-detail__passed {
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
