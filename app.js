@@ -1184,9 +1184,22 @@ async function confirmDeleteModel(brandId, model) {
 // ---------------------------------------------------------------------------
 let lastOrders = [];
 
+// How many orders the live listener holds.
+//
+// A snapshot listener is billed for every document it first delivers, and then
+// for each one that changes — so the window is the running cost of leaving the
+// panel open. 50 is about two screens of scrolling, which is as far as anyone
+// looks when the point is "what needs doing now"; older orders are reached
+// through search, which queries instead of listening.
+const ORDERS_WINDOW = 50;
+
 function startOrdersListener() {
   stopOrdersListener();
-  const q = query(collection(db, "orders"), orderBy("createdAt", "desc"), limit(200));
+  const q = query(
+    collection(db, "orders"),
+    orderBy("createdAt", "desc"),
+    limit(ORDERS_WINDOW)
+  );
   ordersUnsub = onSnapshot(
     q,
     (snap) => {
@@ -1194,10 +1207,60 @@ function startOrdersListener() {
       renderOrders(lastOrders);
     },
     (err) => {
-      el("orders-tbody").innerHTML =
-        `<tr><td colspan="7" class="empty empty--error">Could not load orders: ${escapeHtml(err.message)}</td></tr>`;
+      showOrdersError(err);
     }
   );
+}
+
+// Searching reaches past the live window without widening it.
+//
+// One-off reads, not a second listener: an admin looking up a three-month-old
+// order wants it once, and a listener would keep charging for it all day. The
+// results are merged into what is already on screen and the listener is left
+// alone.
+let searchedOrders = [];
+
+async function searchOlderOrders(term) {
+  const cleaned = term.trim();
+  if (cleaned.length < 3) {
+    searchedOrders = [];
+    renderOrders(lastOrders);
+    return;
+  }
+
+  const host = el("orders-tbody");
+  host.innerHTML = `<tr><td colspan="7" class="empty">Searching earlier orders…</td></tr>`;
+
+  try {
+    // Matched on the reference, because that is what a caller reads out. An
+    // exact match on an indexed field is one document read, where scanning for
+    // a model name would be the whole collection.
+    const upper = cleaned.toUpperCase();
+    const withPrefix = upper.startsWith("FM-") ? upper : `FM-${upper}`;
+
+    const snap = await getDocs(
+      query(collection(db, "orders"), where("reference", "==", withPrefix), limit(5))
+    );
+    searchedOrders = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch (err) {
+    searchedOrders = [];
+    showOrdersError(err);
+    return;
+  }
+  renderOrders(lastOrders);
+}
+
+function showOrdersError(err) {
+  // Said in terms of what to do, not what threw. "Missing or insufficient
+  // permissions" means the signed-in account is not an admin, which is worth
+  // saying plainly rather than making somebody read a Firestore error.
+  const permissions = /permission|insufficient/i.test(err.message || "");
+  el("orders-tbody").innerHTML = `
+    <tr><td colspan="7" class="empty empty--error">
+      ${permissions
+        ? "This account cannot read orders. It may no longer be on the admin list."
+        : `Could not load orders: ${escapeHtml(err.message)}`}
+    </td></tr>`;
 }
 function stopOrdersListener() {
   if (ordersUnsub) {
@@ -1208,8 +1271,15 @@ function stopOrdersListener() {
 
 function renderOrders(orders) {
   const filter = el("orders-search").value.trim().toLowerCase();
+
+  // Anything found by reference beyond the live window, shown alongside what
+  // is already loaded rather than replacing it, and de-duplicated so an order
+  // inside the window is not listed twice.
+  const known = new Set(orders.map((o) => o.id));
+  const pool = [...orders, ...searchedOrders.filter((o) => !known.has(o.id))];
+
   const filtered = filter
-    ? orders.filter((o) =>
+    ? pool.filter((o) =>
         (o.modelName || "").toLowerCase().includes(filter) ||
         (o.brand || "").toLowerCase().includes(filter) ||
         // The code the seller reads out over the phone, with the "FM-"
@@ -1222,7 +1292,18 @@ function renderOrders(orders) {
 
   const tbody = el("orders-tbody");
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty">No orders${filter ? " match that search" : " yet"}.</td></tr>`;
+    // Says which of the two situations it is, and what to do about the one
+    // that has an answer. A bare "no results" leaves an admin wondering
+    // whether the order is missing or merely older than the window.
+    tbody.innerHTML = filter
+      ? `<tr><td colspan="7" class="empty">
+           Nothing in the latest ${ORDERS_WINDOW} orders matches “${escapeHtml(filter)}”.
+           <div class="cell-sub">Enter the full reference (FM-XXXXXX) to search earlier orders.</div>
+         </td></tr>`
+      : `<tr><td colspan="7" class="empty">
+           No orders yet.
+           <div class="cell-sub">They appear here the moment somebody places one.</div>
+         </td></tr>`;
     return;
   }
 
@@ -1412,10 +1493,27 @@ function showOrderDetails(order) {
   orderModal.showModal();
 }
 
+let orderSearchTimer = null;
+
 el("orders-search").addEventListener("input", () => {
-  // Re-render from the live listener's last known set rather than a fresh
-  // query — no network round trip needed just to filter what's on screen.
+  // Filtering what is already loaded costs nothing, so it happens on every
+  // keystroke.
   renderOrders(lastOrders);
+
+  const term = el("orders-search").value.trim();
+
+  // Reaching past the live window does cost a read, so it waits until typing
+  // stops and only when the text looks like a full reference. Firing per
+  // keystroke would bill six reads to type one code.
+  clearTimeout(orderSearchTimer);
+  if (!/^(FM-)?[0-9A-Za-z]{6}$/.test(term)) {
+    if (searchedOrders.length > 0) {
+      searchedOrders = [];
+      renderOrders(lastOrders);
+    }
+    return;
+  }
+  orderSearchTimer = setTimeout(() => searchOlderOrders(term), 500);
 });
 
 // ---------------------------------------------------------------------------
@@ -1623,6 +1721,8 @@ async function assignInspector(orderId, inspectorId) {
 // --- The inspector's own screen ---------------------------------------------
 
 function startInspectorListener(uid) {
+  const host = el("inspector-list");
+  if (host) host.innerHTML = `<p class="empty">Loading your pickups…</p>`;
   const q = query(collection(db, "orders"), where("inspectorId", "==", uid));
   inspectorUnsub = onSnapshot(
     q,
@@ -1632,9 +1732,15 @@ function startInspectorListener(uid) {
     },
     (err) => {
       const host = el("inspector-list");
-      if (host) {
-        host.innerHTML = `<p class="empty">Could not load your pickups: ${escapeHtml(err.message)}</p>`;
-      }
+      if (!host) return;
+      // An inspector has no way to interpret a Firestore error and no console
+      // to look in, so it says what it means for them.
+      const permissions = /permission|insufficient/i.test(err.message || "");
+      host.innerHTML = `<p class="empty empty--error">
+        ${permissions
+          ? "Your account cannot load pickups. Ask an admin to check you are still listed as an inspector."
+          : `Could not load your pickups: ${escapeHtml(err.message)}`}
+      </p>`;
     }
   );
 }
@@ -1798,7 +1904,12 @@ function renderInspectorJobs(orders) {
   const host = el("inspector-list");
   if (!host) return;
   if (orders.length === 0) {
-    host.innerHTML = `<p class="empty">Nothing assigned to you right now.</p>`;
+    // Says it is working, not broken. "Nothing here" on a blank screen reads
+    // as a failure to someone waiting for work.
+    host.innerHTML = `<p class="empty">
+      Nothing assigned to you right now.
+      <span class="cell-sub">New pickups appear here on their own — you do not need to refresh.</span>
+    </p>`;
     return;
   }
 
