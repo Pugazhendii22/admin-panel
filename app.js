@@ -1636,20 +1636,29 @@ async function createInspector(name, email, password) {
 
   const uid = credential.user.uid;
   try {
+    // Only the inspector record. This used to also mirror name and email onto
+    // `users/{uid}`, which the security rules correctly refuse: that document
+    // belongs to the person it describes, and an admin is not them. The write
+    // threw, the error was reported, and the list never refreshed — so a
+    // colleague who HAD been created looked like a failure.
+    //
+    // Nothing needed it. Inspectors sign in to this panel, not the phone app,
+    // and if one ever did the app writes its own user document on first
+    // launch.
     await setDoc(doc(db, "inspectors", uid), {
       name,
       email,
       createdAt: serverTimestamp(),
       active: true,
     });
-    // Mirrored onto the user record so the phone app can tell staff from
-    // sellers without a second read.
-    await setDoc(doc(db, "users", uid), { name, email, role: "inspector" }, { merge: true });
   } catch (err) {
     toast(
       "Account made, but saving their details failed: " + err.message,
       "error"
     );
+    // Still refresh: the auth account exists either way, and showing whatever
+    // did land beats leaving the admin guessing whether to try again.
+    await loadInspectors();
     return false;
   } finally {
     // The new user is signed in on the throwaway connection. Drop it, or the
