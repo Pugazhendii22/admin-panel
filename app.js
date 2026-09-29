@@ -105,6 +105,9 @@ const ORDER_STAGES = [
   { value: "agent_assigned", label: "Agent assigned" },
   { value: "inspection", label: "Under inspection" },
   { value: "paid", label: "Completed & paid" },
+  // Terminal, and set by the seller refusing a revised amount rather than by
+  // staff — but listed so an admin can see and correct it.
+  { value: "declined", label: "Offer declined" },
 ];
 
 const el = (id) => document.getElementById(id);
@@ -1385,7 +1388,7 @@ const HANDLED = new Set([
   "id", "modelName", "brand", "storage", "imageUrl", "modelDocId",
   "basePrice", "finalPayout", "quote", "quoteValidUntil",
   "status", "createdAt", "updatedAt", "userId", "reference",
-  "inspectorId", "inspectorName", "inspection",
+  "inspectorId", "inspectorName", "inspection", "sellerResponse",
   "addressLabel", "addressFullText", "addressLatitude", "addressLongitude",
 ]);
 
@@ -1450,6 +1453,12 @@ function showOrderDetails(order) {
   // First, because it is what the caller on the phone will have quoted.
   if (order.reference) out.push(row("Reference", order.reference));
   if (order.inspectorName) out.push(row("Inspector", order.inspectorName));
+  if (order.sellerResponse) {
+    out.push(row(
+      "Seller answered",
+      order.sellerResponse.decision === "declined" ? "Declined" : "Accepted"
+    ));
+  }
   if (order.inspection) {
     const c = Number(order.inspection.confirmedPayout);
     const q = Number(order.finalPayout);
@@ -1935,6 +1944,17 @@ function inspectionBlock(order) {
   if (done) {
     const confirmed = Number(done.confirmedPayout) || 0;
     const changed = confirmed !== quoted;
+    const answer = order.sellerResponse?.decision;
+    // Loudest thing on the card when it exists: the inspector is deciding
+    // whether to put the phone in the bag.
+    const verdict =
+      answer === "declined"
+        ? `<div class="inspection__verdict inspection__verdict--no">Seller declined — do not collect</div>`
+        : answer === "accepted"
+        ? `<div class="inspection__verdict">Seller accepted</div>`
+        : changed
+        ? `<div class="cell-sub">Waiting for the seller to accept…</div>`
+        : "";
     return `
       <div class="inspection inspection--done">
         <div class="inspection__head">
@@ -1942,6 +1962,7 @@ function inspectionBlock(order) {
           ${changed ? `<span class="cell-sub">quoted ${money(quoted)}</span>` : ""}
         </div>
         ${done.reason ? `<div class="cell-sub">${escapeHtml(String(done.reason))}</div>` : ""}
+        ${verdict}
       </div>`;
   }
 

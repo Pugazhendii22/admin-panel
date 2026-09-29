@@ -1041,3 +1041,20 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
   outline: 2px solid var(--primary-dark);
   outline-offset: 1px;
 }
+
+/* The seller's answer, on an inspector's card. The one thing that decides
+   whether the phone goes in the bag, so it is not a footnote. */
+.inspection__verdict {
+  margin-top: 8px;
+  padding: 8px 10px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--on-primary-soft);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+}
+
+.inspection__verdict--no {
+  color: var(--error);
+  background: var(--error-soft);
+}
