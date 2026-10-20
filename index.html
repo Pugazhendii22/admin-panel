@@ -69,6 +69,10 @@
     <nav class="tabs">
       <button class="tab-btn tab-btn--active" data-tab="tab-catalog" data-admin-only="1">Catalog</button>
       <button class="tab-btn" data-tab="tab-orders" data-admin-only="1">Orders</button>
+      <button class="tab-btn" data-tab="tab-pricing" data-admin-only="1">
+        <span class="tab-label-long">Pricing rules</span>
+        <span class="tab-label-short">Pricing</span>
+      </button>
       <button class="tab-btn" data-tab="tab-staff" data-admin-only="1">Staff</button>
       <button class="tab-btn" data-tab="tab-listings" data-admin-only="1">
         <span class="tab-label-long">Second-hand listings</span>
@@ -187,6 +191,49 @@
         </div>
       </section>
 
+      <!-- ----- Pricing tab ----- -->
+      <section id="tab-pricing" class="tab-panel" hidden data-admin-only="1">
+        <div class="panel-header">
+          <div>
+            <h2>Pricing rules</h2>
+            <p class="panel-sub">
+              What every fault takes off a phone's base price. The app reads
+              these live: a saved change is what the next seller is quoted,
+              with no app update and nothing to redeploy.
+            </p>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <label class="field field--inline">
+            <span>Show percentages as money on a phone worth</span>
+            <input id="pricing-base" type="number" min="0" step="500"
+                   value="20000" inputmode="numeric" />
+          </label>
+          <button id="pricing-refresh" class="btn btn--ghost" type="button"
+                  title="Re-read the rules from the database">↻ Reload</button>
+          <button id="pricing-new" class="btn btn--primary btn--small" type="button">
+            + New category
+          </button>
+        </div>
+
+        <p class="field-help">
+          Deductions add up and then stop: the payout never falls below 10% of
+          the base price, however many faults a phone has. Only a
+          <strong>failed</strong> auto-check costs anything — a test that
+          reported nothing is not a fault, which on an iPhone is most of them.
+          And a fault already charged for by a question is never charged twice:
+          link the two with “Already charged as” and the larger of the two is
+          taken, not both.
+        </p>
+
+        <div id="pricing-list"></div>
+
+        <!-- Filled from the loaded rules — see renderPricingDatalists(). -->
+        <datalist id="checkup-test-keys"></datalist>
+        <datalist id="rule-fault-names"></datalist>
+      </section>
+
       <!-- ----- Second-hand listings tab ----- -->
       <section id="tab-listings" class="tab-panel" hidden data-admin-only="1">
         <div class="panel-header">
@@ -297,6 +344,53 @@
       <div class="modal-actions">
         <button type="button" id="variant-modal-cancel" class="btn btn--ghost">Cancel</button>
         <button type="submit" class="btn btn--primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ===================== New pricing category ===================== -->
+  <dialog id="rule-modal" class="modal" data-admin-only="1">
+    <form id="rule-form" class="modal-card">
+      <h3>New pricing category</h3>
+
+      <label class="field">
+        <span>Id</span>
+        <input id="rule-form-id" type="text" required autocomplete="off"
+               autocapitalize="none" autocorrect="off"
+               placeholder="e.g. water_damage" />
+      </label>
+      <p class="field-help">
+        The document name under <code>deduction_rules</code>, and the key the
+        app would read it by. Lower case, underscores, no spaces — anything
+        else is converted.
+      </p>
+
+      <label class="field">
+        <span>Title</span>
+        <input id="rule-form-title" type="text" autocomplete="off"
+               placeholder="e.g. Water damage" />
+      </label>
+
+      <label class="field">
+        <span>Shape</span>
+        <select id="rule-form-kind">
+          <option value="options">A list of choices, one picked (like Screen condition)</option>
+          <option value="questions">Yes / no questions (like the ones asked first)</option>
+          <option value="checkup">Auto-check findings, priced per test</option>
+        </select>
+      </label>
+
+      <p class="field-help">
+        A new category is saved to the database and shows up here immediately.
+        The sell wizard asks five fixed questions today, so it will not appear
+        in front of a seller until the app is taught to read it — the panel
+        lists it under “Not read by the app” until then, rather than pretending
+        it is live.
+      </p>
+
+      <div class="modal-actions">
+        <button type="button" id="rule-modal-cancel" class="btn btn--ghost">Cancel</button>
+        <button type="submit" class="btn btn--primary">Add</button>
       </div>
     </form>
   </dialog>

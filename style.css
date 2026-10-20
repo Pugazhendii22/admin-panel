@@ -399,6 +399,103 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
 .variant-add-form input[name="storage"] { width: 160px; }
 .variant-add-form input[name="base_price"] { width: 130px; }
 
+/* ---------- Pricing rules ----------
+
+   One card per document in `deduction_rules`. Every row is editable in place
+   rather than behind a modal: the job here is comparing numbers against each
+   other — a 4% scratch beside an 11% one — and a modal hides the comparison
+   that makes the number make sense. */
+
+.rule-card { margin-bottom: 18px; }
+
+.rule-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.rule-head h3 { margin: 0 0 4px; font-size: 16px; }
+.rule-head h3 .badge { vertical-align: middle; margin-left: 6px; }
+.rule-head code { font-size: 11.5px; }
+.rule-head__actions { display: flex; gap: 8px; flex: 0 0 auto; }
+
+/* Where this rule lands in the app, said plainly. It is the question anyone
+   has in mind while changing a number that moves money. */
+.rule-used {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  max-width: 62ch;
+}
+
+.rule-rows { display: flex; flex-direction: column; gap: 10px; }
+
+.rule-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 10px;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+}
+.rule-row__fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.rule-row__move { display: flex; gap: 4px; flex: 0 0 auto; padding-bottom: 2px; }
+
+.field--tight { margin-bottom: 0; min-width: 140px; }
+.field--tight span { margin-bottom: 4px; }
+
+/* The percentage and what it is worth, side by side. A shop owner prices in
+   rupees; "11%" of a phone is not a figure anyone holds in their head. */
+.rule-pct { display: flex; align-items: center; gap: 8px; }
+.rule-pct input { width: 84px; }
+.rule-pct__money {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rule-worst {
+  margin: 14px 0 0;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.rule-worst--over {
+  background: var(--warning-soft);
+  color: #92651a;
+  border-radius: var(--radius-sm);
+  padding: 9px 11px;
+}
+
+.rule-divider { margin: 28px 0 14px; }
+.rule-divider h3 {
+  margin: 0 0 4px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+}
+.rule-divider p { margin: 0; max-width: 70ch; }
+
+/* A phone sets one field per line; the row's buttons go under them rather
+   than squeezing the fields into a column each. */
+@media (max-width: 720px) {
+  .rule-row { flex-direction: column; align-items: stretch; }
+  .rule-row__fields { flex-direction: column; }
+  .field--tight { min-width: 0; }
+  .rule-row__move { justify-content: flex-end; }
+  .rule-head__actions { width: 100%; }
+  .rule-head__actions .btn { flex: 1; }
+}
+
 /* ---------- Modal ---------- */
 
 .modal {

@@ -433,6 +433,10 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
     document.querySelectorAll(".tab-panel").forEach((p) => p.hidden = true);
     btn.classList.add("tab-btn--active");
     el(btn.dataset.tab).hidden = false;
+
+    // Read when it is first looked at, not on sign-in: these are eight reads
+    // the catalog screen has no use for.
+    if (btn.dataset.tab === "tab-pricing" && !pricingDocs) loadPricingRules();
   });
 });
 
@@ -1553,6 +1557,669 @@ el("orders-search").addEventListener("input", () => {
   }
   orderSearchTimer = setTimeout(() => searchOlderOrders(term), 500);
 });
+
+// ---------------------------------------------------------------------------
+// Pricing rules — what each fault takes off
+//
+// `deduction_rules` is the one collection in this database that moves money
+// with nobody from the shop present: the app reads it live, so a percentage
+// saved here is the percentage the next seller is quoted, with no release.
+// Until now it could only be edited in the Firebase console, which meant the
+// people who actually set prices could not, and whoever could was hand-editing
+// JSON arrays beside a running quote engine.
+//
+// So nothing here is clever. No autosave — a save is a button, pressed on
+// purpose. Every percentage is shown as money too, because a shop owner prices
+// in rupees and "11%" of a phone is not a number anyone holds in their head.
+// And the documents the app does not read are listed apart from the ones that
+// cost money, rather than mixed in looking equally live.
+// ---------------------------------------------------------------------------
+
+// The documents the Flutter app reads, in the order a seller meets them.
+//
+// `used` is the sentence shown under each title. It is the answer to the only
+// question that matters when you are about to change a number: where does this
+// land? Anything in the collection that is not listed here is still loaded and
+// still editable — it is just not allowed to claim a place in the sell flow it
+// does not have.
+const RULE_DOCS = [
+  {
+    id: "device_questions",
+    title: "Questions asked first",
+    kind: "questions",
+    used:
+      "Asked before the grading steps. The costly answer becomes a " +
+      "“Functionality fault” line on the seller's quote.",
+  },
+  {
+    id: "screen_condition",
+    title: "Screen condition",
+    kind: "options",
+    used: "Step 1 of the sell wizard. One choice, one deduction.",
+  },
+  {
+    id: "body_condition",
+    title: "Body & frame",
+    kind: "options",
+    used: "Step 2 of the sell wizard.",
+  },
+  {
+    id: "battery_health",
+    title: "Battery health",
+    kind: "options",
+    used:
+      "Step 3. When the phone's own checkup measured a capacity, the band " +
+      "containing it is pre-selected — matched by the numbers in the label, " +
+      "so keep a range in the wording. The seller keeps the last word.",
+  },
+  {
+    id: "accessories",
+    title: "Accessories",
+    kind: "options",
+    used: "Step 4 of the sell wizard.",
+  },
+  {
+    id: "lock_status",
+    title: "Lock status",
+    kind: "options",
+    used: "Step 5 of the sell wizard, beside the payout.",
+  },
+  {
+    id: "checkup_results",
+    title: "Auto-check findings",
+    kind: "checkup",
+    used:
+      "What a failed hardware test takes off, when the seller ran the " +
+      "automatic checkup. Only a FAIL ever deducts — a test that reported " +
+      "nothing is not a fault, which is most of them on an iPhone.",
+  },
+];
+
+// The tests the checkup runs, so a rule can be attached to one by name rather
+// than by remembering its key. Typed entry still works: the list is a
+// datalist, not a dropdown, so a test added after this panel was last touched
+// can be priced without waiting for an edit here.
+const CHECKUP_TESTS = [
+  ["battery", "Battery"],
+  ["camera", "Camera"],
+  ["flashlight", "Flashlight"],
+  ["display", "Display"],
+  ["multitouch", "Multi-touch"],
+  ["buttons", "Side buttons"],
+  ["speaker", "Loudspeaker"],
+  ["earpiece", "Earpiece"],
+  ["microphone", "Microphone"],
+  ["proximity", "Proximity sensor"],
+  ["vibration", "Vibration motor"],
+  ["wifi", "Wi-Fi"],
+  ["bluetooth", "Bluetooth"],
+  ["biometric", "Biometric"],
+  ["network", "Mobile network"],
+  ["internet", "Internet"],
+  ["internet_stability", "Connection stability"],
+  ["location", "Location (GPS)"],
+  ["gyroscope", "Gyroscope"],
+  ["cpu_throttle", "Processor under load"],
+];
+
+// Loaded documents, in display order. Null until the tab is first opened —
+// these are eight reads and the panel opens on the catalog.
+let pricingDocs = null;
+let pricingLoading = false;
+
+// What a percentage is worth, for the preview column. A number to think in,
+// not a figure that goes anywhere near a real quote.
+function pricingBase() {
+  const raw = Number(el("pricing-base")?.value);
+  return Number.isFinite(raw) && raw > 0 ? Math.round(raw) : 0;
+}
+
+function pricingDoc(id) {
+  return (pricingDocs || []).find((d) => d.id === id);
+}
+
+// What shape are this document's options in?
+//
+// Guessed from the options themselves for a document this panel has never
+// heard of, because a custom category created in the console should still open
+// in the right editor rather than in the wrong one.
+function guessKind(options) {
+  const first = options.find((o) => o && typeof o === "object") || {};
+  if ("question" in first) return "questions";
+  if ("key" in first && !("icon_url" in first)) return "checkup";
+  return "options";
+}
+
+// Every field this panel knows how to edit, per kind. Anything else on an
+// option is carried through a save untouched: a field added from the console
+// or by a later version of the app must not be quietly dropped by an editor
+// that predates it.
+const EDITED_FIELDS = {
+  options: ["label", "percent", "icon_url"],
+  questions: ["question", "help", "label", "percent", "deduct_on", "gates"],
+  checkup: ["key", "label", "percent", "same_as"],
+};
+
+async function loadPricingRules() {
+  const host = el("pricing-list");
+  if (!host || pricingLoading) return;
+  pricingLoading = true;
+  host.innerHTML = `<p class="empty">Loading pricing rules…</p>`;
+
+  try {
+    const snap = await getDocs(collection(db, "deduction_rules"));
+    const found = new Map();
+    snap.forEach((d) => found.set(d.id, d.data() || {}));
+
+    const docs = [];
+    const take = (id, known) => {
+      const data = found.get(id);
+      const raw = Array.isArray(data?.options) ? data.options : [];
+      const options = raw.map((o) => ({ ...(o && typeof o === "object" ? o : {}) }));
+      found.delete(id);
+      docs.push({
+        id,
+        title: known?.title || data?.title || id,
+        kind: known?.kind || data?.kind || guessKind(options),
+        used: known?.used || "",
+        inApp: Boolean(known),
+        missing: !data,
+        options,
+        dirty: false,
+      });
+    };
+
+    for (const known of RULE_DOCS) take(known.id, known);
+    // Whatever else is in the collection, in a stable order.
+    for (const id of [...found.keys()].sort()) take(id, null);
+
+    pricingDocs = docs;
+    renderPricing();
+  } catch (e) {
+    host.innerHTML = `<p class="empty empty--error">
+      Could not load pricing rules: ${escapeHtml(e.message)}
+    </p>`;
+  } finally {
+    pricingLoading = false;
+  }
+}
+
+function renderPricing() {
+  const host = el("pricing-list");
+  if (!host || !pricingDocs) return;
+
+  const live = pricingDocs.filter((d) => d.inApp);
+  const rest = pricingDocs.filter((d) => !d.inApp);
+
+  host.innerHTML =
+    live.map(ruleCard).join("") +
+    (rest.length
+      ? `<div class="rule-divider">
+           <h3>Not read by the app</h3>
+           <p class="cell-sub">
+             These documents exist in <code>deduction_rules</code> but nothing in
+             the app asks for them, so editing one changes no quote today. They
+             are listed because deleting things quietly is worse than showing
+             them — and a new category lives here until the sell wizard is
+             taught to show it.
+           </p>
+         </div>` + rest.map(ruleCard).join("")
+      : "");
+
+  renderPricingDatalists();
+}
+
+function ruleCard(d) {
+  const base = pricingBase();
+  const worst = d.options.reduce((most, o) => Math.max(most, percentOf(o)), 0);
+
+  return `
+    <section class="card rule-card" data-rule="${escapeHtml(d.id)}">
+      <div class="rule-head">
+        <div>
+          <h3>${escapeHtml(d.title)}
+            ${d.dirty ? `<span class="badge badge--warning">unsaved</span>` : ""}
+          </h3>
+          <p class="cell-sub">
+            <code>deduction_rules/${escapeHtml(d.id)}</code>
+            ${d.missing ? ` · <strong>not created yet</strong>` : ""}
+          </p>
+          ${d.used ? `<p class="rule-used">${d.used}</p>` : ""}
+        </div>
+        <div class="rule-head__actions">
+          <button class="btn btn--small btn--ghost" data-act="add" type="button">+ Option</button>
+          <button class="btn btn--small btn--primary" data-act="save" type="button"
+                  ${d.dirty ? "" : "disabled"}>Save</button>
+        </div>
+      </div>
+
+      ${d.options.length === 0
+        ? `<p class="empty">No options yet. “+ Option” adds the first one.</p>`
+        : `<div class="rule-rows">${d.options
+            .map((o, i) => optionRow(d, o, i, base))
+            .join("")}</div>`}
+
+      ${worst > 0
+        ? `<p class="rule-worst ${worst > 90 ? "rule-worst--over" : ""}">
+             Worst case here: <strong>${worst}%</strong>${
+               base ? ` — ${money(Math.round((base * worst) / 100))} off ${money(base)}` : ""
+             }.
+             ${worst > 90
+               ? "Over 90% on one choice alone. The payout never drops below 10% of the base price, so anything past that is invisible to the seller and only makes the quote harder to explain."
+               : ""}
+           </p>`
+        : ""}
+    </section>`;
+}
+
+// One editable option. The percentage carries its money value beside it,
+// recalculated as it is typed.
+function optionRow(d, o, i, base) {
+  const pct = percentOf(o);
+  const asMoney = base ? money(Math.round((base * pct) / 100)) : "—";
+  const move = `
+    <div class="rule-row__move">
+      <button class="btn btn--tiny" data-act="up" data-index="${i}" type="button"
+              ${i === 0 ? "disabled" : ""} title="Move up">↑</button>
+      <button class="btn btn--tiny" data-act="down" data-index="${i}" type="button"
+              ${i === d.options.length - 1 ? "disabled" : ""} title="Move down">↓</button>
+      <button class="btn btn--tiny btn--danger" data-act="delete" data-index="${i}"
+              type="button" title="Remove this option">✕</button>
+    </div>`;
+
+  const percentField = `
+    <label class="field field--tight">
+      <span>Takes off</span>
+      <div class="rule-pct">
+        <input type="number" min="0" max="100" step="1" inputmode="numeric"
+               data-index="${i}" data-field="percent" value="${pct}" />
+        <span class="rule-pct__money" data-money-for="${i}">${escapeHtml(asMoney)}</span>
+      </div>
+    </label>`;
+
+  if (d.kind === "questions") {
+    return `
+      <div class="rule-row rule-row--wide">
+        <div class="rule-row__fields">
+          <label class="field field--tight field--grow">
+            <span>Question the seller is asked</span>
+            <input type="text" data-index="${i}" data-field="question"
+                   value="${escapeHtml(o.question || "")}"
+                   placeholder="e.g. Is the fingerprint sensor working?" />
+          </label>
+          <label class="field field--tight field--grow">
+            <span>Smaller line underneath</span>
+            <input type="text" data-index="${i}" data-field="help"
+                   value="${escapeHtml(o.help || "")}"
+                   placeholder="How to check it" />
+          </label>
+          <label class="field field--tight field--grow">
+            <span>Name on the quote</span>
+            <input type="text" data-index="${i}" data-field="label"
+                   value="${escapeHtml(o.label || "")}"
+                   placeholder="e.g. Fingerprint Not Working" />
+          </label>
+          ${percentField}
+          <label class="field field--tight">
+            <span>Costly answer</span>
+            <select data-index="${i}" data-field="deduct_on">
+              <option value="no" ${deductOn(o) === "no" ? "selected" : ""}>“No” costs</option>
+              <option value="yes" ${deductOn(o) === "yes" ? "selected" : ""}>“Yes” costs</option>
+            </select>
+          </label>
+          <label class="field field--tight">
+            <span>Stops the rest</span>
+            <select data-index="${i}" data-field="gates">
+              <option value="" ${gatesOf(o) ? "" : "selected"}>No</option>
+              <option value="powers_on" ${gatesOf(o) ? "selected" : ""}>Phone won't switch on</option>
+            </select>
+          </label>
+        </div>
+        ${move}
+      </div>`;
+  }
+
+  if (d.kind === "checkup") {
+    return `
+      <div class="rule-row rule-row--wide">
+        <div class="rule-row__fields">
+          <label class="field field--tight">
+            <span>Test</span>
+            <input type="text" list="checkup-test-keys" autocomplete="off"
+                   data-index="${i}" data-field="key"
+                   value="${escapeHtml(o.key || "")}" placeholder="e.g. speaker" />
+          </label>
+          <label class="field field--tight field--grow">
+            <span>Name on the quote</span>
+            <input type="text" data-index="${i}" data-field="label"
+                   value="${escapeHtml(o.label || "")}"
+                   placeholder="e.g. Loudspeaker failed its own test" />
+          </label>
+          ${percentField}
+          <label class="field field--tight field--grow">
+            <span>Already charged as</span>
+            <input type="text" list="rule-fault-names" autocomplete="off"
+                   data-index="${i}" data-field="same_as"
+                   value="${escapeHtml(o.same_as || "")}"
+                   placeholder="Leave blank if nothing else covers it" />
+          </label>
+        </div>
+        ${move}
+      </div>`;
+  }
+
+  return `
+    <div class="rule-row">
+      <div class="rule-row__fields">
+        <label class="field field--tight field--grow">
+          <span>What the seller picks</span>
+          <input type="text" data-index="${i}" data-field="label"
+                 value="${escapeHtml(o.label || "")}"
+                 placeholder="e.g. Visible Scratches" />
+        </label>
+        ${percentField}
+        <label class="field field--tight field--grow">
+          <span>Icon URL <em>(optional)</em></span>
+          <input type="url" inputmode="url" autocapitalize="none" autocorrect="off"
+                 data-index="${i}" data-field="icon_url"
+                 value="${escapeHtml(o.icon_url || "")}" placeholder="https://…" />
+        </label>
+      </div>
+      ${move}
+    </div>`;
+}
+
+function percentOf(o) {
+  const raw = o?.percent;
+  const n = typeof raw === "number" ? raw : Number(raw);
+  return Number.isFinite(n) ? Math.round(n) : 0;
+}
+
+function deductOn(o) {
+  return String(o?.deduct_on || "no").toLowerCase() === "yes" ? "yes" : "no";
+}
+
+// Only one gate is understood by the app — see `DeviceQuestion.fromMap`, which
+// treats anything it does not recognise as gating nothing.
+function gatesOf(o) {
+  return String(o?.gates || "").trim().toLowerCase() === "powers_on";
+}
+
+// The fault names already in use, offered when linking an auto-check rule to
+// the question that charges for the same thing. Built from what is loaded, so
+// it follows a rename on the next reload rather than going stale in code.
+function faultNameOptions() {
+  const names = new Set();
+  for (const d of pricingDocs || []) {
+    if (d.kind === "checkup") continue;
+    if (d.kind === "questions") {
+      for (const o of d.options) if (o.label) names.add(String(o.label));
+    } else if (d.inApp) {
+      names.add(d.title);
+    }
+  }
+  return [...names].sort();
+}
+
+// --- editing ---------------------------------------------------------------
+
+const pricingHost = el("pricing-list");
+
+// Typing edits state and leaves the DOM alone: re-rendering on a keystroke
+// would take the cursor out of the field being typed into. Only structural
+// changes — add, delete, move, save — redraw.
+pricingHost?.addEventListener("input", (e) => {
+  const input = e.target.closest("[data-field]");
+  if (!input) return;
+  const card = input.closest("[data-rule]");
+  const d = pricingDoc(card?.dataset.rule);
+  if (!d) return;
+
+  const i = Number(input.dataset.index);
+  const option = d.options[i];
+  if (!option) return;
+
+  const field = input.dataset.field;
+  if (field === "percent") {
+    const n = Math.round(Number(input.value));
+    option.percent = Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0;
+    const label = card.querySelector(`[data-money-for="${i}"]`);
+    const base = pricingBase();
+    if (label) {
+      label.textContent = base
+        ? money(Math.round((base * option.percent) / 100))
+        : "—";
+    }
+  } else {
+    option[field] = input.value;
+  }
+
+  markDirty(d, card);
+});
+
+pricingHost?.addEventListener("change", (e) => {
+  const select = e.target.closest("select[data-field]");
+  if (!select) return;
+  const card = select.closest("[data-rule]");
+  const d = pricingDoc(card?.dataset.rule);
+  if (!d) return;
+  const option = d.options[Number(select.dataset.index)];
+  if (!option) return;
+  option[select.dataset.field] = select.value;
+  markDirty(d, card);
+});
+
+function markDirty(d, card) {
+  if (d.dirty) return;
+  d.dirty = true;
+  const save = card.querySelector('[data-act="save"]');
+  if (save) save.disabled = false;
+  const title = card.querySelector(".rule-head h3");
+  if (title && !title.querySelector(".badge")) {
+    title.insertAdjacentHTML("beforeend", ` <span class="badge badge--warning">unsaved</span>`);
+  }
+}
+
+pricingHost?.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-act]");
+  if (!btn) return;
+  const card = btn.closest("[data-rule]");
+  const d = pricingDoc(card?.dataset.rule);
+  if (!d) return;
+
+  const i = Number(btn.dataset.index);
+
+  switch (btn.dataset.act) {
+    case "add":
+      d.options.push(blankOption(d.kind));
+      d.dirty = true;
+      renderPricing();
+      break;
+
+    case "delete": {
+      const name = d.options[i]?.label || d.options[i]?.question || "this option";
+      // A deduction is money. Removing one silently because a thumb landed on
+      // the wrong row is not a mistake anybody would notice until a seller is
+      // quoted too much.
+      if (!confirm(`Remove “${name}” from ${d.title}?\n\nNothing is written until you press Save.`)) return;
+      d.options.splice(i, 1);
+      d.dirty = true;
+      renderPricing();
+      break;
+    }
+
+    case "up":
+    case "down": {
+      const to = btn.dataset.act === "up" ? i - 1 : i + 1;
+      if (to < 0 || to >= d.options.length) return;
+      [d.options[i], d.options[to]] = [d.options[to], d.options[i]];
+      d.dirty = true;
+      renderPricing();
+      break;
+    }
+
+    case "save":
+      await savePricingDoc(d, btn);
+      break;
+  }
+});
+
+function blankOption(kind) {
+  if (kind === "questions") {
+    return { question: "", help: "", label: "", percent: 0, deduct_on: "no" };
+  }
+  if (kind === "checkup") return { key: "", label: "", percent: 0, same_as: "" };
+  return { label: "", percent: 0, icon_url: "" };
+}
+
+// What actually gets written: the fields this editor owns, cleaned, plus every
+// field it does not recognise, untouched.
+function optionForSave(option, kind) {
+  const known = EDITED_FIELDS[kind] || EDITED_FIELDS.options;
+  const out = {};
+  for (const [key, value] of Object.entries(option)) {
+    if (!known.includes(key)) out[key] = value;
+  }
+
+  for (const key of known) {
+    if (key === "percent") {
+      // Clamped on the way out as well as on the way in. The number typed
+      // here is already held to 0-100, but a document edited in the console
+      // can hold anything, and a negative deduction — one that pays a seller
+      // extra for a fault — is not a thing this app can price.
+      out.percent = Math.min(100, Math.max(0, percentOf(option)));
+    } else if (key === "deduct_on") {
+      out.deduct_on = deductOn(option);
+    } else if (key === "gates") {
+      // Written only when it gates, so an ordinary question keeps the shape it
+      // has had since before gating existed.
+      const gate = String(option.gates || "").trim();
+      if (gate) out.gates = gate;
+    } else if (key === "icon_url") {
+      out.icon_url = String(option.icon_url || "").trim();
+    } else {
+      const value = String(option[key] ?? "").trim();
+      if (value || key === "label") out[key] = value;
+    }
+  }
+  return out;
+}
+
+async function savePricingDoc(d, btn) {
+  // The app reads `label` to name a choice and `question` to ask one. A blank
+  // one renders as an empty card nobody can pick, so it is caught here rather
+  // than in front of a seller.
+  const blanks = d.options.filter((o) =>
+    d.kind === "questions"
+      ? !String(o.question || "").trim() || !String(o.label || "").trim()
+      : d.kind === "checkup"
+      ? !String(o.key || "").trim() || !String(o.label || "").trim()
+      : !String(o.label || "").trim()
+  );
+  if (blanks.length) {
+    toast(
+      d.kind === "checkup"
+        ? "Every auto-check rule needs a test and a name on the quote."
+        : d.kind === "questions"
+        ? "Every question needs its wording and a name for the quote."
+        : "Every option needs a label.",
+      "error"
+    );
+    return;
+  }
+
+  btn.disabled = true;
+  const previous = btn.textContent;
+  btn.textContent = "Saving…";
+  try {
+    await setDoc(
+      doc(db, "deduction_rules", d.id),
+      { options: d.options.map((o) => optionForSave(o, d.kind)) },
+      // Merge, so a top-level field this panel never shows — a title, a note,
+      // anything a later version adds — survives a save made from here.
+      { merge: true }
+    );
+    d.dirty = false;
+    d.missing = false;
+    toast(`${d.title} saved — the app quotes from it immediately.`, "success");
+    renderPricing();
+  } catch (err) {
+    toast("Could not save: " + err.message, "error");
+    btn.disabled = false;
+    btn.textContent = previous;
+  }
+}
+
+// --- a new category --------------------------------------------------------
+
+const ruleModal = el("rule-modal");
+
+el("pricing-new")?.addEventListener("click", () => {
+  el("rule-form").reset();
+  ruleModal.showModal();
+});
+el("rule-modal-cancel")?.addEventListener("click", () => ruleModal.close());
+
+el("rule-form")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  // A Firestore document id, and the key the app would read it by. Spaces and
+  // slashes in an id are the kind of thing that works until the day something
+  // builds a path out of it.
+  const id = el("rule-form-id").value.trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_");
+  const title = el("rule-form-title").value.trim();
+  const kind = el("rule-form-kind").value;
+
+  if (!id) {
+    toast("A category needs an id.", "error");
+    return;
+  }
+  if (pricingDoc(id)) {
+    toast(`“${id}” already exists — scroll down and edit it.`, "error");
+    return;
+  }
+
+  pricingDocs.push({
+    id,
+    title: title || id,
+    kind,
+    used: "",
+    inApp: false,
+    missing: true,
+    options: [blankOption(kind)],
+    dirty: true,
+  });
+  ruleModal.close();
+  renderPricing();
+  toast("Category added below. Fill it in and press Save to write it.", "info");
+});
+
+el("pricing-base")?.addEventListener("input", () => {
+  if (pricingDocs) renderPricing();
+});
+el("pricing-refresh")?.addEventListener("click", () => {
+  const unsaved = (pricingDocs || []).some((d) => d.dirty);
+  if (unsaved && !confirm("Reload and lose the changes you have not saved?")) return;
+  pricingDocs = null;
+  loadPricingRules();
+});
+
+// The datalists the rows point at. Written once the rules are loaded, since
+// one of them is built out of the rules themselves.
+function renderPricingDatalists() {
+  const tests = el("checkup-test-keys");
+  if (tests && !tests.childElementCount) {
+    tests.innerHTML = CHECKUP_TESTS.map(
+      ([key, name]) => `<option value="${escapeHtml(key)}">${escapeHtml(name)}</option>`
+    ).join("");
+  }
+  const faults = el("rule-fault-names");
+  if (faults) {
+    faults.innerHTML = faultNameOptions()
+      .map((name) => `<option value="${escapeHtml(name)}"></option>`)
+      .join("");
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Second-hand listings (read-only) — the "other" collection the mobile app
