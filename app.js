@@ -1394,6 +1394,13 @@ const HANDLED = new Set([
   "status", "createdAt", "updatedAt", "userId", "reference",
   "inspectorId", "inspectorName", "inspection", "sellerResponse",
   "addressLabel", "addressFullText", "addressLatitude", "addressLongitude",
+  // Rendered as the pickup briefing and the self-check section below. Before
+  // that they arrived here as a wall of JSON under "Other fields", which is
+  // where an agent was expected to notice that the checkup had run on a
+  // different phone.
+  "checkup", "checkupProvenance", "checkupDevice",
+  "deviceReachable", "provisionalQuote",
+  "customerName", "customerPhone",
 ]);
 
 function showOrderDetails(order) {
@@ -1472,10 +1479,26 @@ function showOrderDetails(order) {
     out.push(`<p class="detail-note">Payout hit the minimum floor — deductions exceeded the device value.</p>`);
   }
 
+  // --- before pickup ---
+  const briefing = briefingBlock(order);
+  if (briefing) {
+    out.push(heading("Before pickup"));
+    out.push(briefing);
+  }
+
+  // --- what the phone said about itself ---
+  const selfCheck = checkupBlock(order);
+  if (selfCheck) {
+    out.push(heading("Phone self-check"));
+    out.push(selfCheck);
+  }
+
   // --- status ---
   out.push(heading("Status"));
   // First, because it is what the caller on the phone will have quoted.
   if (order.reference) out.push(row("Reference", order.reference));
+  if (order.customerName) out.push(row("Seller", order.customerName));
+  if (order.customerPhone) out.push(row("Phone", order.customerPhone));
   if (order.inspectorName) out.push(row("Inspector", order.inspectorName));
   if (order.sellerResponse) {
     out.push(row(
@@ -2731,6 +2754,131 @@ function batteryBandEm(reading, choice) {
   )}</em>`;
 }
 
+// --- Before you knock ------------------------------------------------------
+//
+// The order document has been carrying things nobody could see: which phone
+// the self-check actually ran on, whether the handset switches on at all,
+// whether the quote has lapsed. All of it decides what an agent does at the
+// door, and all of it was landing in a JSON dump at the bottom of a sheet.
+//
+// Each note appears only when there is something to say. An order that says
+// none of these things renders exactly as it did — the usual rule here, and
+// the reason this returns "" rather than an empty box.
+
+// How a provenance reads to the person holding the phone.
+//
+// `unverified` is the honest default and the status quo: most Android
+// handsets report a sales code where a model name should be and can never be
+// matched by string. It is not a suspicion and must not be dressed as one —
+// only `otherDevice` is a mismatch anybody established.
+const PROVENANCE_NOTES = {
+  onDevice: {
+    tone: "good",
+    text: "The self-check ran on this phone.",
+    sub: "Its results describe the handset you are collecting.",
+  },
+  otherDevice: {
+    tone: "warn",
+    text: "The self-check ran on a different phone.",
+    sub:
+      "The seller went ahead knowing that. Those results describe the other " +
+      "handset — check this one yourself.",
+  },
+  unverified: {
+    tone: "plain",
+    text: "The self-check could not be tied to this phone.",
+    sub:
+      "Normal: most Android handsets report a sales code instead of a model " +
+      "name. It is not a sign of anything — just unproven either way.",
+  },
+};
+
+function briefingNotes(order) {
+  const notes = [];
+
+  // Loudest, and first: nothing about this phone could be measured by
+  // anybody, and the agent should know that before travelling.
+  if (order.deviceReachable === false) {
+    notes.push({
+      tone: "warn",
+      text: "The seller says this phone will not switch on.",
+      sub:
+        order.provisionalQuote
+          ? "The quote is provisional — it was never more than an estimate, " +
+            "and settling it is the whole job at the door."
+          : "Nothing could be measured before pickup.",
+    });
+  }
+
+  const ran = Array.isArray(order.checkup) && order.checkup.length > 0;
+  if (ran) {
+    const note = PROVENANCE_NOTES[order.checkupProvenance] || PROVENANCE_NOTES.unverified;
+    const device = order.checkupDevice;
+    const named = device
+      ? [device.brand || device.manufacturer, device.model]
+          .filter(Boolean)
+          .join(" ")
+      : "";
+    const os = device ? [device.os, device.osVersion].filter(Boolean).join(" ") : "";
+    notes.push({
+      ...note,
+      sub: [note.sub, named || os ? `Handset read as ${[named, os].filter(Boolean).join(" · ")}.` : ""]
+        .filter(Boolean)
+        .join(" "),
+    });
+  } else if (order.deviceReachable !== false) {
+    notes.push({
+      tone: "plain",
+      text: "The seller skipped the self-check.",
+      sub: "Nothing was measured before pickup — everything here is what they declared.",
+    });
+  }
+
+  // A quote nobody is bound by any more. Worth knowing before the figure is
+  // read out at somebody's door rather than after.
+  const lapsed = lapsedAt(order.quoteValidUntil);
+  if (lapsed) {
+    notes.push({
+      tone: "warn",
+      // Escaped once, by the renderer below.
+      text: `This quote lapsed on ${formatDate(order.quoteValidUntil)}.`,
+      sub: "Confirm the figure before collecting.",
+    });
+  }
+
+  if (order.quote?.floored) {
+    notes.push({
+      tone: "plain",
+      text: "The payout hit the minimum floor.",
+      sub:
+        "Deductions came to more than 90% of the base price, so the lines " +
+        "below deliberately do not add up to the figure paid.",
+    });
+  }
+
+  return notes;
+}
+
+function lapsedAt(ts) {
+  const date = ts?.toDate ? ts.toDate() : ts instanceof Date ? ts : null;
+  return date && date.getTime() < Date.now();
+}
+
+function briefingBlock(order) {
+  const notes = briefingNotes(order);
+  if (notes.length === 0) return "";
+
+  return notes
+    .map(
+      (n) => `
+      <div class="job-note job-note--${n.tone}">
+        <strong>${escapeHtml(n.text)}</strong>
+        ${n.sub ? `<span class="cell-sub">${escapeHtml(n.sub)}</span>` : ""}
+      </div>`
+    )
+    .join("");
+}
+
 function conditionBlock(order) {
   const lines = Array.isArray(order.quote?.lines) ? order.quote.lines : [];
   const battery = batteryReading(order);
@@ -2796,6 +2944,12 @@ function checkupBlock(order) {
   const measured = passed.filter((r) => measuredValues(r.data).length > 0);
   const quiet = passed.filter((r) => measuredValues(r.data).length === 0);
 
+  // Tests the handset would not answer. Named, because an agent who cannot
+  // see them has no way to tell a test that passed from one that never ran —
+  // but kept well away from the failures, since reporting nothing is not a
+  // fault and was never charged for.
+  const silent = results.filter((r) => r.status === "notAvailable");
+
   return `
     <details class="job-detail" ${failed.length ? "open" : ""}>
       <summary>
@@ -2823,6 +2977,17 @@ function checkupBlock(order) {
         ? `<div class="cell-sub job-detail__passed">Passed: ${quiet
             .map((r) => escapeHtml(String(r.title || r.key || "")))
             .join(", ")}</div>`
+        : ""}
+      ${silent.length
+        ? `<div class="cell-sub job-detail__passed">
+             Not reported by this phone: ${silent
+               .map((r) => escapeHtml(String(r.title || r.key || "")))
+               .join(", ")}
+             <span class="cell-sub">
+               The handset would not answer these. On an iPhone that is most
+               of them — it is not a fault and nothing was deducted for it.
+             </span>
+           </div>`
         : ""}
     </details>`;
 }
@@ -2981,6 +3146,7 @@ function renderInspectorJobs(orders) {
         <div class="cell-title">${escapeHtml(o.modelName || "Device")}</div>
         <div class="cell-sub">${escapeHtml([o.brand, o.storage].filter(Boolean).join(" · "))}</div>
         <div class="job-card__payout">${money(o.finalPayout)}</div>
+        ${briefingBlock(o)}
         ${pickupBlock(o)}
         ${conditionBlock(o)}
         ${checkupBlock(o)}

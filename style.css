@@ -1077,6 +1077,25 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
   border-top: 1px solid var(--border);
 }
 
+/* What an agent needs before knocking: which phone the self-check ran on,
+   whether the handset switches on, whether the quote still stands. Three
+   tones, and the quiet one is deliberate — "could not be tied to this phone"
+   is the ordinary case on Android and must not look like an accusation. */
+.job-note {
+  display: block;
+  margin-top: 10px;
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  font-size: 0.86rem;
+  background: var(--bg);
+}
+.job-note strong { display: block; font-weight: 600; }
+.job-note .cell-sub { display: block; }
+.job-note--warn { background: var(--warning-soft); }
+.job-note--warn strong { color: #92651a; }
+.job-note--good { background: var(--success-soft); }
+.job-note--good strong { color: var(--on-primary-soft); }
+
 /* What the phone measured about itself, under the test that measured it, and
    under the band the seller graded themselves. Evidence for the inspector —
    it never moves a figure, so it is not styled as a fault. The exception is a
