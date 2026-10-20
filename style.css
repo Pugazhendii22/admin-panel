@@ -463,6 +463,17 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
 }
 .detail-minus { color: var(--error); }
 
+/* The phone's own capacity reading, beside the seller's band. See
+   .job-detail__measured — same idea, in the details sheet's own type. */
+.detail-row--deduction .k em.detail-measured { font-variant-numeric: tabular-nums; }
+.detail-row--deduction .k em.detail-measured--off { color: var(--error); }
+
+/* The reading is a long sentence and the deduction is four characters, so on
+   a 360px sheet the flex row would sooner break "−₹3,000" across two lines
+   than wrap the sentence. The amount is the one thing here that must not
+   break; it is also never long enough to need to. */
+.detail-row--deduction .v { white-space: nowrap; }
+
 .detail-row--total {
   display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
   padding: 12px 0 0;
@@ -968,6 +979,19 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
   padding-top: 6px;
   border-top: 1px solid var(--border);
 }
+
+/* What the phone measured about itself, under the test that measured it, and
+   under the band the seller graded themselves. Evidence for the inspector —
+   it never moves a figure, so it is not styled as a fault. The exception is a
+   capacity reading that falls outside the band chosen: that disagreement is
+   the whole reason the number is on the order. */
+.job-detail__measured {
+  display: block;
+  font-variant-numeric: tabular-nums;
+}
+.job-detail__measured strong { color: var(--text-secondary); font-weight: 600; }
+.job-detail__measured--off,
+.job-detail__measured--off strong { color: var(--error); }
 
 /* Empty and error states carry a second line explaining what to do, so they
    need to stack rather than sit on one line. */

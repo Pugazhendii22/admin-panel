@@ -1423,6 +1423,10 @@ function showOrderDetails(order) {
   // it actually applied (it does not record the questions that cost nothing),
   // so every line here is worth showing.
   const lines = Array.isArray(order.quote?.lines) ? order.quote.lines : [];
+  // The phone's own capacity reading, shown against the band the seller
+  // graded themselves — the one line on this sheet an inspector is there to
+  // check. Null on every order placed before the app started sending it.
+  const battery = batteryReading(order);
   for (const d of lines) {
     const sub = [d.category, d.percent != null ? `${d.percent}%` : null].filter(Boolean).join(" · ");
     out.push(`
@@ -1430,8 +1434,24 @@ function showOrderDetails(order) {
         <span class="k">
           ${escapeHtml(d.choice || "Deduction")}
           ${sub ? `<em>${escapeHtml(sub)}</em>` : ""}
+          ${battery && isBatteryLine(d) ? batteryBandEm(battery, d.choice) : ""}
         </span>
         <span class="v detail-minus">−${escapeHtml(money(d.amount))}</span>
+      </div>
+    `);
+  }
+
+  // A band worth nothing is written as no line at all, so there is nothing
+  // above for the reading to sit under. It still belongs on the sheet.
+  if (battery && !lines.some(isBatteryLine)) {
+    out.push(`
+      <div class="detail-row detail-row--deduction">
+        <span class="k">
+          Battery health
+          <em>Seller's band took nothing off</em>
+          ${batteryBandEm(battery, null)}
+        </span>
+        <span class="v">—</span>
       </div>
     `);
   }
@@ -1853,9 +1873,201 @@ function pickupBlock(order) {
   return rows.join("");
 }
 
+// --- What the phone measured -----------------------------------------------
+//
+// Each entry in an order's `checkup` array may carry a `data` map of what the
+// test actually measured, beside the sentence in `detail` that a person reads.
+// Most entries carry none, and an order placed before the app started sending
+// it carries none at all — so everything here returns an empty list rather
+// than an empty container. An older order has to render exactly as it did.
+//
+// None of it touches a figure. The checkup is evidence for the inspector, not
+// an input to the quote.
+
+// `capacityHealth` is what a test page happens to call a variable; it is not
+// something to read off a doorstep. The keys we know about are spelled out in
+// words, in this order. Keys nobody has written yet are still shown, with
+// their name unpicked as best we can — the next test page to land will add
+// some, and a measurement shown awkwardly beats one silently dropped.
+const MEASURED_LABELS = {
+  capacityHealth: ["Capacity", (v) => `${tidyNumber(v)}% of original`],
+  cycleCount: ["Charge cycles", (v) => tidyNumber(v)],
+  healthFlag: ["Condition", (v) => measuredWords(v)],
+  temperatureCelsius: ["Temperature", (v) => `${tidyNumber(v)} °C`],
+  peakTemperatureCelsius: ["Peak temperature", (v) => `${tidyNumber(v)} °C`],
+  sustainedRatio: [
+    "Sustained speed",
+    // A ratio, not a percentage, so it is the one figure here that has to be
+    // multiplied — and the only one that would print "NaN%" if a test ever
+    // put something other than a number in it.
+    (v) => (Number.isFinite(Number(v)) ? `${Math.round(Number(v) * 100)}% of peak` : String(v)),
+  ],
+  seconds: ["Measured over", (v) => `${tidyNumber(v)}s`],
+  thermalStatus: ["Thermal status", (v) => measuredWords(v)],
+  thermalHeadroom: ["Thermal headroom", (v) => tidyNumber(v)],
+  biometric: ["Sensor", (v) => measuredWords(v)],
+};
+
+// The platform's own vocabulary, as the app words it (see `_flagWords` in
+// `checkup/battery_test_page.dart`). An unknown flag is shown as it came.
+const MEASURED_WORDS = {
+  good: "good",
+  overheat: "overheating",
+  dead: "dead",
+  over_voltage: "over voltage",
+  cold: "too cold to judge",
+  failure: "failed",
+};
+
+function measuredWords(value) {
+  const raw = String(value);
+  return MEASURED_WORDS[raw] || raw.replace(/_/g, " ");
+}
+
+// Enough precision to be the measurement it is, and no more: 72, 38.27, 0.97,
+// never 38.266666666666666 — and never rounded so hard that a figure under 1
+// becomes 1.
+function tidyNumber(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return String(value);
+  return String(Math.round(n * 100) / 100);
+}
+
+// `capacityHealth` -> `Capacity health`, for a key this panel has never seen.
+function unpickKey(key) {
+  const words = String(key)
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+// `[label, value]` pairs for one entry's `data`, known keys first.
+//
+// Only numbers, strings and booleans — the same three kinds the app filters
+// its map down to before writing it, so anything else here arrived from
+// somewhere this panel does not know about and is left out rather than
+// stringified into the inspector's face.
+function measuredValues(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return [];
+
+  const known = Object.keys(MEASURED_LABELS).filter((k) => k in data);
+  const rest = Object.keys(data).filter((k) => !(k in MEASURED_LABELS));
+
+  const out = [];
+  for (const key of [...known, ...rest]) {
+    const value = data[key];
+    if (typeof value === "boolean") {
+      out.push([MEASURED_LABELS[key]?.[0] || unpickKey(key), value ? "yes" : "no"]);
+      continue;
+    }
+    if (typeof value === "number" && !Number.isFinite(value)) continue;
+    if (typeof value !== "number" && typeof value !== "string") continue;
+    if (value === "") continue;
+
+    const spec = MEASURED_LABELS[key];
+    out.push([
+      spec ? spec[0] : unpickKey(key),
+      String(spec ? spec[1](value) : typeof value === "number" ? tidyNumber(value) : value),
+    ]);
+  }
+  return out;
+}
+
+// The measured figures as one line under a test's own row. Empty string when
+// the test measured nothing, so the row keeps the shape it has always had.
+function measuredLine(data) {
+  const values = measuredValues(data);
+  if (values.length === 0) return "";
+  return `<span class="cell-sub job-detail__measured">${values
+    .map(([label, value]) => `${escapeHtml(label)} <strong>${escapeHtml(value)}</strong>`)
+    .join(" · ")}</span>`;
+}
+
+// --- The battery figure, against the band the seller chose ------------------
+//
+// The seller grades their own battery in the sell wizard and that band is
+// worth up to 35% of the quote. Checking that grading is what the inspector
+// has come to do, and until the app started sending `data` they had the
+// phone's reading only as prose. The two belong side by side.
+
+// The capacity reading off an order, or null. Never an estimate: the app
+// deliberately refuses to turn a cycle count into a health percentage (see
+// `estimatedHealthFromCycles` in `shared/services/battery_band.dart`, which
+// exists only to record why), so neither does this.
+function batteryReading(order) {
+  const results = Array.isArray(order.checkup) ? order.checkup : [];
+  for (const r of results) {
+    const health = r?.data?.capacityHealth;
+    if (typeof health !== "number" || !Number.isFinite(health) || health <= 0) continue;
+    const cycles = r.data.cycleCount;
+    return {
+      health: Math.round(health),
+      cycles:
+        typeof cycles === "number" && Number.isFinite(cycles) && cycles > 0
+          ? Math.round(cycles)
+          : null,
+    };
+  }
+  return null;
+}
+
+function isBatteryLine(line) {
+  return /batter/i.test(String(line?.category || ""));
+}
+
+// Does the band label the seller picked cover a measured figure?
+//
+// Ported from `batteryBandFor` in the app's `shared/services/battery_band.dart`
+// and matching by reading the numbers out of the label, for the same reason:
+// the bands live in `deduction_rules` and staff reword and reorder them, so an
+// index would break silently. Returns null when the label has no numbers to
+// compare against, which is not a disagreement.
+function bandCovers(health, label) {
+  const numbers = (String(label || "").match(/\d+/g) || []).map(Number);
+  if (numbers.length === 0) return null;
+
+  const lower = String(label).toLowerCase();
+  if (lower.includes("below") || lower.includes("under")) return health < numbers[0];
+  if (numbers.length >= 2) {
+    return health >= Math.min(...numbers) && health <= Math.max(...numbers);
+  }
+  return health >= numbers[0];
+}
+
+// The reading, worded for the band standing next to it.
+//
+// Display only — nothing here recalculates a payout. It says so when the
+// measurement falls outside the band the seller chose, because that
+// disagreement is the whole reason the figure is on the order; a band with no
+// numbers in it, or no band at all, is not a disagreement and is not
+// coloured.
+function batteryAgainstBand(reading, choice) {
+  const measured =
+    `Phone measured ${reading.health}% of original capacity` +
+    (reading.cycles ? ` after ${reading.cycles} charge cycles` : "");
+  const off = choice == null ? false : bandCovers(reading.health, choice) === false;
+  return { text: off ? `${measured} — outside the band chosen` : measured, off };
+}
+
+function batteryBandSub(reading, choice) {
+  const { text, off } = batteryAgainstBand(reading, choice);
+  return `<span class="cell-sub job-detail__measured${
+    off ? " job-detail__measured--off" : ""
+  }">${escapeHtml(text)}</span>`;
+}
+
+function batteryBandEm(reading, choice) {
+  const { text, off } = batteryAgainstBand(reading, choice);
+  return `<em class="detail-measured${off ? " detail-measured--off" : ""}">${escapeHtml(
+    text
+  )}</em>`;
+}
+
 function conditionBlock(order) {
   const lines = Array.isArray(order.quote?.lines) ? order.quote.lines : [];
-  if (lines.length === 0) return "";
+  const battery = batteryReading(order);
+  if (lines.length === 0 && !battery) return "";
 
   // Only the deductions. A line worth nothing was answered in the phone's
   // favour and is not something to go and verify.
@@ -1871,6 +2083,7 @@ function conditionBlock(order) {
           <span class="job-detail__what">
             ${escapeHtml(String(l.category || ""))}
             <span class="cell-sub">${escapeHtml(String(l.choice || ""))}</span>
+            ${battery && isBatteryLine(l) ? batteryBandSub(battery, l.choice) : ""}
           </span>
           <span class="job-detail__cost">${
             Number(l.amount) > 0 ? "-" + money(Number(l.amount)) : "—"
@@ -1878,6 +2091,16 @@ function conditionBlock(order) {
         </div>`
         )
         .join("")}
+      ${battery && !lines.some(isBatteryLine)
+        ? `<div class="job-detail__row">
+             <span class="job-detail__what">
+               Battery health
+               <span class="cell-sub">Seller's band took nothing off</span>
+               ${batteryBandSub(battery, null)}
+             </span>
+             <span class="job-detail__cost">—</span>
+           </div>`
+        : ""}
       ${order.quote?.basePrice
         ? `<div class="job-detail__row job-detail__row--total">
              <span>Base ${money(Number(order.quote.basePrice))}</span>
@@ -1899,6 +2122,13 @@ function checkupBlock(order) {
   const skipped = results.filter((r) => r.status === "skipped");
   const passed = results.filter((r) => r.status === "pass");
 
+  // A test that passed and measured something gets a row of its own. The
+  // figures are the reason this array is worth reading at the door — the
+  // battery's capacity usually arrives on a pass — while the ticks that
+  // measured nothing stay behind the count, which is the point of the split.
+  const measured = passed.filter((r) => measuredValues(r.data).length > 0);
+  const quiet = passed.filter((r) => measuredValues(r.data).length === 0);
+
   return `
     <details class="job-detail" ${failed.length ? "open" : ""}>
       <summary>
@@ -1907,20 +2137,23 @@ function checkupBlock(order) {
           skipped.length ? `, ${skipped.length} skipped` : ""
         }
       </summary>
-      ${[...failed, ...skipped]
+      ${[...failed, ...skipped, ...measured]
         .map(
           (r) => `
         <div class="job-detail__row ${r.status === "fail" ? "job-detail__row--fault" : ""}">
           <span class="job-detail__what">
             ${escapeHtml(String(r.title || r.key || ""))}
             ${r.detail ? `<span class="cell-sub">${escapeHtml(String(r.detail))}</span>` : ""}
+            ${measuredLine(r.data)}
           </span>
-          <span class="job-detail__cost">${r.status === "fail" ? "FAIL" : "skipped"}</span>
+          <span class="job-detail__cost">${
+            r.status === "fail" ? "FAIL" : r.status === "skipped" ? "skipped" : "pass"
+          }</span>
         </div>`
         )
         .join("")}
-      ${passed.length
-        ? `<div class="cell-sub job-detail__passed">Passed: ${passed
+      ${quiet.length
+        ? `<div class="cell-sub job-detail__passed">Passed: ${quiet
             .map((r) => escapeHtml(String(r.title || r.key || "")))
             .join(", ")}</div>`
         : ""}
