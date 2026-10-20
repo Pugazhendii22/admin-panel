@@ -1400,6 +1400,9 @@ const HANDLED = new Set([
   // different phone.
   "checkup", "checkupProvenance", "checkupDevice",
   "deviceReachable", "provisionalQuote",
+  // The grading the quote does not record, because it cost nothing. Rendered
+  // as the declaration section; absent on orders older than it.
+  "declared",
   "customerName", "customerPhone",
 ]);
 
@@ -1477,6 +1480,16 @@ function showOrderDetails(order) {
   }
   if (order.quote?.floored) {
     out.push(`<p class="detail-note">Payout hit the minimum floor — deductions exceeded the device value.</p>`);
+  }
+
+  // --- what the seller claimed was fine ---
+  // Under the deductions on purpose: the two halves of the same claim, and
+  // the only one of them that cost nothing is the one with something left to
+  // check.
+  const declared = declaredBlock(order);
+  if (declared) {
+    out.push(heading("Seller's declaration"));
+    out.push(declared);
   }
 
   // --- before pickup ---
@@ -2925,6 +2938,84 @@ function conditionBlock(order) {
     </details>`;
 }
 
+// What the seller said was fine, which is the half of the claim nothing else
+// here records.
+//
+// `quote.lines` — and so conditionBlock above — carries deductions only: a
+// flawless screen writes no line, and a question answered the harmless way
+// writes nothing at all. So an order could say the screen cost nothing only
+// by saying nothing about the screen, and the agent at the door could not
+// tell "the seller claimed perfect" from "nobody asked". The app writes
+// `declared` beside the quote for exactly that. It is absent on every order
+// placed before it existed, and both of its keys are optional.
+//
+// The claims that cost nothing are the rows, because they are the ones with
+// nowhere else to appear and something to go and verify. What was charged for
+// is already priced above, so it sits behind a line here rather than being
+// listed twice.
+function declaredBlock(order) {
+  const selections = Array.isArray(order.declared?.selections)
+    ? order.declared.selections
+    : [];
+  const answers = Array.isArray(order.declared?.answers)
+    ? order.declared.answers
+    : [];
+  if (selections.length === 0 && answers.length === 0) return "";
+
+  // `isFault` is read off the order rather than worked out from `answeredYes`:
+  // whether an answer was the costly one depends on how the question was
+  // phrased, and "has this had water damage? — yes" is the good answer to
+  // nobody.
+  const free = selections.filter((s) => !(Number(s.percent) > 0));
+  const clean = answers.filter((a) => !a.isFault);
+  const charged = [
+    ...selections.filter((s) => Number(s.percent) > 0).map((s) => s.category),
+    ...answers.filter((a) => a.isFault).map((a) => a.label || a.question),
+  ]
+    .map((t) => String(t || "").trim())
+    .filter(Boolean);
+
+  // A graded step names itself and its option; a question needs its own
+  // wording underneath, since "No" on its own tells an agent nothing.
+  const rows = [
+    ...free.map((s) => ({
+      what: s.category,
+      sub: s.choice,
+      said: "—",
+    })),
+    ...clean.map((a) => ({
+      what: a.label || a.question,
+      sub: a.label ? a.question : "",
+      said: a.answeredYes ? "Yes" : "No",
+    })),
+  ];
+
+  return `
+    <details class="job-detail">
+      <summary>Seller said fine — ${
+        rows.length ? `${rows.length} to verify` : "nothing"
+      }</summary>
+      ${rows
+        .map(
+          (r) => `
+        <div class="job-detail__row">
+          <span class="job-detail__what">
+            ${escapeHtml(String(r.what || ""))}
+            ${r.sub ? `<span class="cell-sub">${escapeHtml(String(r.sub))}</span>` : ""}
+          </span>
+          <span class="job-detail__cost">${escapeHtml(r.said)}</span>
+        </div>`
+        )
+        .join("")}
+      ${charged.length
+        ? `<div class="cell-sub job-detail__passed">
+             Already on the quote: ${charged.map(escapeHtml).join(", ")} —
+             priced above, and not a claim anyone has to go and check.
+           </div>`
+        : ""}
+    </details>`;
+}
+
 // What the phone said about itself, when the seller ran the automatic check.
 //
 // Failures first and open by default; passes collapsed behind a count. An
@@ -3149,6 +3240,7 @@ function renderInspectorJobs(orders) {
         ${briefingBlock(o)}
         ${pickupBlock(o)}
         ${conditionBlock(o)}
+        ${declaredBlock(o)}
         ${checkupBlock(o)}
         ${inspectionBlock(o)}
         <div class="job-card__actions">
