@@ -1698,6 +1698,41 @@ const CHECKUP_TESTS = [
   ["cpu_throttle", "Processor under load"],
 ];
 
+// A first draft of `checkup_results`: every test the app runs, with the price
+// the shop already charges for the same fault wherever a question covers it,
+// and a conservative guess where nothing does.
+//
+// These are a starting point to argue with, not researched prices — which is
+// why the button fills the form and stops, leaving the numbers on screen to
+// be changed and the Save to be pressed on purpose. Twenty rows typed by hand
+// is how a shop ends up with the feature switched off instead.
+//
+// `same_as` is the important column, not the percentage: it is what stops a
+// phone being charged twice for one fault. The three audio tests deliberately
+// share one, so a handset failing all three is charged once, at the highest.
+const CHECKUP_SUGGESTIONS = [
+  ["battery", "Battery below healthy capacity", 10, "Battery health"],
+  ["display", "Screen faulty (dead pixels, burn-in)", 12, "Screen condition"],
+  ["multitouch", "Touch screen not responding everywhere", 30, "Touch Screen Not Working"],
+  ["camera", "Camera faulty", 10, "Camera (Front/Rear) Issue"],
+  ["speaker", "Loudspeaker faulty", 7, "Speaker / Mic Issue"],
+  ["earpiece", "Earpiece faulty", 7, "Speaker / Mic Issue"],
+  ["microphone", "Microphone faulty", 7, "Speaker / Mic Issue"],
+  ["buttons", "Side buttons not working", 8, "Buttons Not Working"],
+  ["biometric", "Fingerprint or face unlock not working", 10, "Fingerprint / Face ID"],
+  ["network", "Mobile network fault", 18, "Network / SIM Issue"],
+  ["cpu_throttle", "Processor throttling under load", 12, ""],
+  ["wifi", "Wi-Fi fault", 6, ""],
+  ["internet", "Cannot reach the internet", 6, ""],
+  ["location", "GPS fault", 5, ""],
+  ["bluetooth", "Bluetooth fault", 4, ""],
+  ["proximity", "Proximity sensor fault", 4, ""],
+  ["gyroscope", "Gyroscope fault", 4, ""],
+  ["internet_stability", "Unstable connection", 4, ""],
+  ["flashlight", "Flashlight fault", 3, ""],
+  ["vibration", "Vibration motor fault", 3, ""],
+];
+
 // Loaded documents, in display order. Null until the tab is first opened —
 // these are eight reads and the panel opens on the catalog.
 let pricingDocs = null;
@@ -1823,6 +1858,12 @@ function ruleCard(d) {
           ${d.used ? `<p class="rule-used">${d.used}</p>` : ""}
         </div>
         <div class="rule-head__actions">
+          ${d.kind === "checkup"
+            ? `<button class="btn btn--small btn--ghost" data-act="seed" type="button"
+                       title="Fill in every test the app runs, for you to price">
+                 Fill in the tests
+               </button>`
+            : ""}
           <button class="btn btn--small btn--ghost" data-act="add" type="button">+ Option</button>
           <button class="btn btn--small btn--primary" data-act="save" type="button"
                   ${d.dirty ? "" : "disabled"}>Save</button>
@@ -2071,6 +2112,30 @@ pricingHost?.addEventListener("click", async (e) => {
       d.dirty = true;
       renderPricing();
       break;
+
+    case "seed": {
+      // Only the tests that are missing, so pressing it twice cannot
+      // duplicate a row and a price already set by hand is never overwritten.
+      const have = new Set(
+        d.options.map((o) => String(o.key || "").trim().toLowerCase())
+      );
+      const missing = CHECKUP_SUGGESTIONS.filter(([key]) => !have.has(key));
+      if (missing.length === 0) {
+        toast("Every test the app runs is already listed here.", "info");
+        return;
+      }
+      for (const [key, label, percent, same_as] of missing) {
+        d.options.push({ key, label, percent, ...(same_as ? { same_as } : {}) });
+      }
+      d.dirty = true;
+      renderPricing();
+      toast(
+        `${missing.length} test${missing.length === 1 ? "" : "s"} filled in. ` +
+          "Change the figures, then Save — nothing is written until you do.",
+        "info"
+      );
+      break;
+    }
 
     case "delete": {
       const name = d.options[i]?.label || d.options[i]?.question || "this option";
