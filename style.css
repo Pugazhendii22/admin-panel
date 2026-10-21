@@ -1198,3 +1198,78 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
   color: var(--error);
   background: var(--error-soft);
 }
+
+/* The agent's defect checklist, inside a job card.
+   Two buttons a row rather than a dropdown: it is answered standing up, on a
+   phone, often one-handed and in somebody's doorway. */
+.check-group {
+  margin: 12px 0 2px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.check {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+.check__what { min-width: 0; font-size: 14px; }
+.check__what .cell-sub { display: block; }
+.check--fault .check__what { font-weight: 600; }
+
+/* The seller's own claim against this row. Orange rather than red: it is
+   somebody else's word, and the agent has not answered yet. */
+.check__declared {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--warning-soft);
+  color: #8A5A05;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.check__answer { display: flex; flex: none; gap: 6px; }
+.check__btn {
+  min-width: 56px;
+  padding: 7px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.check__btn:hover:not(.is-on) { border-color: var(--text-tertiary); }
+.check__btn--pass.is-on {
+  background: var(--success-soft);
+  border-color: var(--success);
+  color: var(--success);
+}
+.check__btn--fail.is-on {
+  background: var(--error-soft);
+  border-color: var(--error);
+  color: var(--error);
+}
+/* Dashed, never filled: a suggestion must not look like an answer somebody
+   gave. The whole point of the list is that an agent looked. */
+.check__btn.is-suggested {
+  border-style: dashed;
+  border-color: var(--warning);
+  color: #8A5A05;
+}
+
+.inspection__faults {
+  margin-top: 6px;
+  color: var(--error);
+  font-weight: 600;
+}
+.inspection__faults:empty { display: none; }

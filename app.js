@@ -1527,6 +1527,25 @@ function showOrderDetails(order) {
       Number.isFinite(c) ? money(c) : "—"
     ));
     if (order.inspection.reason) out.push(row("Reason", order.inspection.reason));
+    // What the agent actually looked at. The count matters as much as the
+    // faults: "two faults of three looked at" and "two faults of fourteen"
+    // are different visits, and only one of them settles a dispute.
+    const checks = order.inspection.checks;
+    if (checks && typeof checks === "object" && !Array.isArray(checks)) {
+      const verdicts = Object.keys(checks).filter(
+        (k) => checks[k] === "pass" || checks[k] === "fail"
+      );
+      const faults = verdicts.filter((k) => checks[k] === "fail");
+      if (verdicts.length) {
+        out.push(row(
+          "Agent checks",
+          `${faults.length} fault${faults.length === 1 ? "" : "s"} of ${verdicts.length} looked at`
+        ));
+      }
+      if (faults.length) {
+        out.push(row("Faults found", faults.map(checkLabel).join(", ")));
+      }
+    }
   }
   out.push(row("Stage", ORDER_STAGES.find((s) => s.value === order.status)?.label || order.status || "placed"));
   if (order.createdAt) out.push(row("Placed", formatDate(order.createdAt)));
@@ -3148,6 +3167,395 @@ function checkupBlock(order) {
     </details>`;
 }
 
+// --- What the agent found, item by item -------------------------------------
+//
+// The seller grades their own phone in the app, and until now an agent arrived
+// with that list and a single free-text box: whatever they noticed went into
+// `reason`, or nowhere. A disagreement afterwards came down to one sentence
+// typed in a doorway.
+//
+// These are the defects a buyback agent is actually sent to look for, each
+// answered Pass or Fail. They ride along with the finding, so they carry the
+// agent's own id and a server timestamp like everything else recorded there.
+//
+// Nothing here moves a figure. The amount stays a number the agent types
+// deliberately — a checklist that silently repriced the phone would be exactly
+// the quiet deduction this whole record exists to prevent. What the faults do
+// is explain the number.
+
+// Where a declared fault was, when the wording says so. "Crack" on its own
+// belongs to no row: the screen and the body both crack, and guessing wrong
+// puts an orange note against a defect the seller never claimed.
+const CHECK_SCREEN = /screen|écran|ecran|display|glass|vitre|lcd/i;
+const CHECK_BODY = /body|back|rear|frame|chassis|châssis|dos|coque|housing/i;
+
+// Severity words, for the two rows that are the same defect twice. A plain
+// "discoloration" suggests neither — it gets the note and the agent picks.
+const CHECK_MINOR = /minor|light|slight|small|léger|leger|petit|faible/i;
+const CHECK_MAJOR = /major|heavy|severe|deep|large|important|grave|fort/i;
+
+// French as well as English in every pattern: the categories come out of
+// `deduction_rules`, which staff write, and a mapping that silently never
+// matches would look exactly like a seller who declared nothing.
+const CONDITION_CHECKS = [
+  // The screen first. It is most of the phone's value and the thing the agent
+  // is standing there holding up to the light.
+  {
+    id: "screen_crack",
+    group: "Screen",
+    label: "Crack on screen",
+    hint: "Any crack in the glass, however fine",
+    where: CHECK_SCREEN,
+    what: /crack|shatter|fissur|bris|cass/i,
+  },
+  {
+    id: "screen_discolour_minor",
+    group: "Screen",
+    label: "Minor discoloration",
+    hint: "A patch or tint that does not spread across the panel",
+    where: CHECK_SCREEN,
+    what: /discolo|décolor|decolor|tint|tache|yellow|shadow/i,
+    severity: "minor",
+  },
+  {
+    id: "screen_discolour_major",
+    group: "Screen",
+    label: "Major discoloration",
+    hint: "Spreading stain, bleeding backlight, dead area",
+    where: CHECK_SCREEN,
+    what: /discolo|décolor|decolor|bleed|dead pixel|burn|stain/i,
+    severity: "major",
+  },
+  {
+    id: "screen_lifting",
+    group: "Screen",
+    label: "Screen coming out",
+    hint: "Panel lifting from the frame anywhere along the edge",
+    where: CHECK_SCREEN,
+    what: /lift|coming out|detach|separat|décoll|decoll|gap/i,
+  },
+
+  // Then the body, roughly in the order a phone gets turned over in the hand.
+  {
+    id: "body_dents",
+    group: "Body",
+    label: "Dents",
+    hint: "Anything you can feel with a thumb",
+    what: /dent|bosse|ding/i,
+  },
+  {
+    id: "body_scratches",
+    group: "Body",
+    label: "Scratches",
+    hint: "Ten or more light ones, or a single deep one",
+    what: /scratch|rayure|scuff|éraflure|eraflure/i,
+  },
+  {
+    id: "body_paint_peel",
+    group: "Body",
+    label: "Paint peel",
+    what: /peel|paint|peinture|écaill|ecaill/i,
+  },
+  {
+    id: "body_rust",
+    group: "Body",
+    label: "Rust",
+    hint: "Usually around the ports and the SIM tray",
+    what: /rust|rouille|corros/i,
+  },
+  {
+    id: "body_bent",
+    group: "Body",
+    label: "Body bent",
+    hint: "Lay it face down on a flat surface and press a corner",
+    what: /bent|bend|warp|tordu|plié|plie|voilé|voile/i,
+  },
+  {
+    id: "body_crack",
+    group: "Body",
+    label: "Crack on body",
+    where: CHECK_BODY,
+    what: /crack|shatter|fissur|bris|cass/i,
+  },
+  {
+    id: "missing_parts",
+    group: "Body",
+    label: "Missing parts",
+    hint: "SIM tray, back cover, camera glass, a button",
+    what: /missing|manquant|absent|lost|perdu/i,
+  },
+
+  // Signs of a panel that has been off the phone before. None of them is
+  // visible with the screen lit, which is why they are a separate look.
+  {
+    id: "screen_bubbles",
+    group: "Screen fitting",
+    label: "Air bubbles under the screen",
+    where: CHECK_SCREEN,
+    what: /bubble|bulle/i,
+  },
+  {
+    id: "screen_dust",
+    group: "Screen fitting",
+    label: "Dust under the screen",
+    where: CHECK_SCREEN,
+    what: /dust|poussi/i,
+  },
+  {
+    id: "screen_colour_mismatch",
+    group: "Screen fitting",
+    label: "Mismatched screen colour",
+    hint: "Whites or blacks that do not match the original panel",
+    where: CHECK_SCREEN,
+    what: /mismatch|replaced|remplac|aftermarket|non-?genuine|not original|copie/i,
+  },
+];
+
+// The seller's own account of the phone, as one searchable line per claim.
+//
+// Three shapes say it: `quote.lines` (the deductions the wizard priced),
+// `declared.selections` (every graded step, including the ones that cost
+// nothing) and `declared.answers` (the yes/no questions). The first two
+// overlap, which costs nothing here — a claim matched twice is still the same
+// claim. An order placed before `declared` existed carries only the first, and
+// one with none of them simply gets no suggestions.
+function declaredClaims(order) {
+  const claims = [];
+  const push = (text, isFault, said) => {
+    const t = String(text || "").trim();
+    if (t) claims.push({ text: t, isFault, said: String(said || t).trim() });
+  };
+
+  for (const l of Array.isArray(order.quote?.lines) ? order.quote.lines : []) {
+    push(`${l.category || ""} ${l.choice || ""}`, Number(l.amount) > 0, l.choice || l.category);
+  }
+  for (const s of Array.isArray(order.declared?.selections) ? order.declared.selections : []) {
+    push(`${s.category || ""} ${s.choice || ""}`, Number(s.percent) > 0, s.choice || s.category);
+  }
+  for (const a of Array.isArray(order.declared?.answers) ? order.declared.answers : []) {
+    // `isFault` rather than `answeredYes`: whether an answer was the costly one
+    // depends on how the question was phrased, and "has this had water damage?
+    // — yes" is the good answer to nobody.
+    push(`${a.label || ""} ${a.question || ""}`, !!a.isFault, a.label || a.question);
+  }
+  return claims;
+}
+
+// What the seller already said about one check, if anything.
+//
+// A suggestion is never an answer. It is shown beside the row and the buttons
+// stay empty until somebody taps one, because the whole value of this list is
+// that an agent looked — a prefilled verdict would record fourteen findings
+// for a phone nobody turned over.
+function checkSuggestion(check, claims) {
+  const matches = claims.filter(
+    (c) => check.what.test(c.text) && (!check.where || check.where.test(c.text))
+  );
+  if (matches.length === 0) return null;
+
+  // A fault outranks a clean claim: if any wording matches and was charged
+  // for, that is the one worth going to look at.
+  const fault = matches.find((c) => c.isFault);
+  if (!fault) return { answer: "pass", note: `Seller said fine: ${matches[0].said}` };
+
+  // The same defect listed twice at two severities. Without a word saying
+  // which, neither row is the seller's claim, so the note goes on both and the
+  // person holding the phone decides.
+  if (check.severity) {
+    const minor = CHECK_MINOR.test(fault.text);
+    const major = CHECK_MAJOR.test(fault.text);
+    if (!minor && !major) return { answer: null, note: `Seller declared: ${fault.said}` };
+    if (check.severity === "minor" && !minor) return null;
+    if (check.severity === "major" && !major) return null;
+  }
+  return { answer: "fail", note: `Seller declared: ${fault.said}` };
+}
+
+// The agent's answers, per order, kept outside the DOM.
+//
+// The job list re-renders on every snapshot — a status change made in the
+// office redraws this card — and a checklist that lost half its answers
+// because somebody touched the record would be worse than no checklist.
+const checkAnswers = new Map();
+
+function answersFor(orderId) {
+  let answers = checkAnswers.get(orderId);
+  if (!answers) {
+    answers = {};
+    checkAnswers.set(orderId, answers);
+  }
+  return answers;
+}
+
+function checkTally(answers) {
+  const values = CONDITION_CHECKS.map((c) => answers[c.id]);
+  const failed = values.filter((v) => v === "fail").length;
+  const passed = values.filter((v) => v === "pass").length;
+  return { failed, passed, left: CONDITION_CHECKS.length - failed - passed };
+}
+
+function checkSummaryText(t) {
+  return `Agent checks — ${t.failed} fault${t.failed === 1 ? "" : "s"}, ` +
+    `${t.passed} fine, ${t.left} not looked at`;
+}
+
+// The name of a recorded check, for a verdict written by a version of this
+// panel that knew a check this one does not. Shown unpicked rather than
+// dropped, the same way an unknown measurement is.
+function checkLabel(id) {
+  return CONDITION_CHECKS.find((c) => c.id === id)?.label || unpickKey(id);
+}
+
+function checksBlock(order) {
+  // Once a finding is filed the list is a record, not a form.
+  if (order.inspection) return recordedChecksBlock(order);
+
+  const claims = declaredClaims(order);
+  const answers = answersFor(order.id);
+
+  let group = "";
+  const rows = CONDITION_CHECKS.map((check) => {
+    const suggestion = checkSuggestion(check, claims);
+    const answer = answers[check.id];
+    let head = "";
+    if (check.group !== group) {
+      group = check.group;
+      head = `<div class="check-group">${escapeHtml(group)}</div>`;
+    }
+    const button = (value, label) => `
+      <button type="button"
+              class="check__btn check__btn--${value}${answer === value ? " is-on" : ""}${
+                !answer && suggestion?.answer === value ? " is-suggested" : ""
+              }"
+              aria-pressed="${answer === value}"
+              data-check-set="${escapeHtml(order.id)}|${check.id}|${value}">${label}</button>`;
+
+    return `
+      ${head}
+      <div class="check${answer === "fail" ? " check--fault" : ""}"
+           data-check-row="${escapeHtml(order.id)}|${check.id}">
+        <span class="check__what">
+          ${escapeHtml(check.label)}
+          ${check.hint ? `<span class="cell-sub">${escapeHtml(check.hint)}</span>` : ""}
+          ${suggestion ? `<span class="check__declared">${escapeHtml(suggestion.note)}</span>` : ""}
+        </span>
+        <span class="check__answer">${button("pass", "Pass")}${button("fail", "Fail")}</span>
+      </div>`;
+  }).join("");
+
+  const tally = checkTally(answers);
+  return `
+    <details class="job-detail job-detail--checks"${tally.failed ? " open" : ""}>
+      <summary data-check-tally="${escapeHtml(order.id)}">${escapeHtml(checkSummaryText(tally))}</summary>
+      <div class="cell-sub job-detail__passed">
+        Fail means you found the defect. An outlined answer is the seller's own
+        claim, not an answer — tap it to agree. The list is saved with the
+        amount when you confirm.
+      </div>
+      ${rows}
+    </details>`;
+}
+
+// The same list after the fact, for a card whose finding is already filed.
+//
+// Only the checks that were answered: a row nobody looked at is not a pass,
+// and a list padded out to fourteen would say the phone was gone over when it
+// was not. A verdict under an id this panel no longer knows is still shown.
+function recordedChecksBlock(order) {
+  const checks = order.inspection?.checks;
+  if (!checks || typeof checks !== "object" || Array.isArray(checks)) return "";
+
+  const known = CONDITION_CHECKS.filter((c) => checks[c.id] === "pass" || checks[c.id] === "fail")
+    .map((c) => [c.id, checks[c.id], c.group]);
+  const unknown = Object.keys(checks)
+    .filter((k) => !CONDITION_CHECKS.some((c) => c.id === k))
+    .filter((k) => checks[k] === "pass" || checks[k] === "fail")
+    .map((k) => [k, checks[k], ""]);
+  const rows = [...known, ...unknown];
+  if (rows.length === 0) return "";
+
+  const failed = rows.filter(([, verdict]) => verdict === "fail");
+  return `
+    <details class="job-detail"${failed.length ? " open" : ""}>
+      <summary>
+        Agent checks — ${failed.length} fault${failed.length === 1 ? "" : "s"}
+        of ${rows.length} looked at
+      </summary>
+      ${rows
+        .map(
+          ([id, verdict, group]) => `
+        <div class="job-detail__row ${verdict === "fail" ? "job-detail__row--fault" : ""}">
+          <span class="job-detail__what">
+            ${escapeHtml(checkLabel(id))}
+            ${group ? `<span class="cell-sub">${escapeHtml(group)}</span>` : ""}
+          </span>
+          <span class="job-detail__cost">${verdict === "fail" ? "FAIL" : "pass"}</span>
+        </div>`
+        )
+        .join("")}
+    </details>`;
+}
+
+// The faults found, repeated under the reason box. The agent tapped them a
+// moment ago; the sentence they have to type for a lower amount should not
+// also be a feat of memory.
+function faultHint(orderId) {
+  const answers = checkAnswers.get(orderId) || {};
+  const names = CONDITION_CHECKS.filter((c) => answers[c.id] === "fail").map((c) => c.label);
+  if (names.length === 0) return "";
+  return `Faults you marked: ${names.map(escapeHtml).join(", ")}`;
+}
+
+// Only ids and verdicts this panel knows, because the rules cannot check the
+// inside of the map — Firestore has no way to iterate one — and an agent's
+// browser is the one place a stray key could come from.
+function answeredChecks(orderId) {
+  const answers = checkAnswers.get(orderId) || {};
+  const out = {};
+  for (const check of CONDITION_CHECKS) {
+    if (answers[check.id] === "pass" || answers[check.id] === "fail") {
+      out[check.id] = answers[check.id];
+    }
+  }
+  return out;
+}
+
+function wireChecks(host) {
+  host.querySelectorAll("[data-check-set]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      // Split from the right: the order id is whatever is left, so an id
+      // carrying the separator cannot shift the verdict onto another row.
+      const parts = String(btn.dataset.checkSet).split("|");
+      const value = parts.pop();
+      const checkId = parts.pop();
+      const orderId = parts.join("|");
+      const answers = answersFor(orderId);
+
+      // Tapping the answer already showing clears it. An agent who mis-taps in
+      // a doorway should be able to put the row back to unanswered rather than
+      // leave behind a verdict they did not mean.
+      if (answers[checkId] === value) delete answers[checkId];
+      else answers[checkId] = value;
+
+      const row = btn.closest("[data-check-row]");
+      row.querySelectorAll("[data-check-set]").forEach((other) => {
+        const on = !!answers[checkId] && other.dataset.checkSet.endsWith(`|${answers[checkId]}`);
+        other.classList.toggle("is-on", on);
+        // The seller's claim stops being worth showing the moment somebody
+        // answers the row themselves.
+        other.classList.remove("is-suggested");
+        other.setAttribute("aria-pressed", String(on));
+      });
+      row.classList.toggle("check--fault", answers[checkId] === "fail");
+
+      const tally = host.querySelector(`[data-check-tally="${CSS.escape(orderId)}"]`);
+      if (tally) tally.textContent = checkSummaryText(checkTally(answers));
+      const faults = host.querySelector(`[data-check-faults="${CSS.escape(orderId)}"]`);
+      if (faults) faults.innerHTML = faultHint(orderId);
+    });
+  });
+}
+
 // Confirming what the phone is actually worth, at the door.
 //
 // The app tells sellers "the final amount is confirmed when the agent inspects
@@ -3200,6 +3608,8 @@ function inspectionBlock(order) {
       <input class="inspection__reason" type="text" maxlength="200"
              placeholder="Reason — required if you change the amount"
              data-reason="${escapeHtml(order.id)}" hidden />
+      <div class="cell-sub inspection__faults"
+           data-check-faults="${escapeHtml(order.id)}">${faultHint(order.id)}</div>
       <div class="cell-sub">Quoted ${money(quoted)}. Change it only if the phone is not as described.</div>
     </div>`;
 }
@@ -3252,6 +3662,10 @@ function wireInspection(host, orders) {
 
       btn.disabled = true;
       try {
+        // One write, not two: the checklist is part of the finding, and a
+        // second update would need its own trip past rules that require the
+        // payout and the timestamp to be in the same document.
+        const checks = answeredChecks(id);
         await updateDoc(doc(db, "orders", id), {
           inspection: {
             confirmedPayout: amount,
@@ -3259,10 +3673,14 @@ function wireInspection(host, orders) {
             inspectorId: auth.currentUser.uid,
             at: serverTimestamp(),
             ...(reason ? { reason } : {}),
+            ...(Object.keys(checks).length ? { checks } : {}),
           },
           status: "inspection",
           updatedAt: serverTimestamp(),
         });
+        // Filed, so the card becomes a record on the next snapshot and the
+        // working copy has nothing left to protect.
+        checkAnswers.delete(id);
         toast("Recorded", "success");
       } catch (err) {
         toast("Could not record that: " + err.message, "error");
@@ -3307,6 +3725,7 @@ function renderInspectorJobs(orders) {
         ${conditionBlock(o)}
         ${declaredBlock(o)}
         ${checkupBlock(o)}
+        ${checksBlock(o)}
         ${inspectionBlock(o)}
         <div class="job-card__actions">
           <select class="status-select" data-job-id="${escapeHtml(o.id)}">
@@ -3322,6 +3741,7 @@ function renderInspectorJobs(orders) {
     .join("");
 
   wireInspection(host, orders);
+  wireChecks(host);
 
   host.querySelectorAll("[data-job-id]").forEach((sel) => {
     sel.addEventListener("change", async () => {
