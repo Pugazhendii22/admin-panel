@@ -12,7 +12,7 @@
 // republish is picked up on the next load rather than being pinned to a
 // stale cached copy — the usual reason a PWA "won't update".
 
-const CACHE = "fm-admin-v1";
+const CACHE = "fm-admin-v8";
 
 const SHELL = [
   "./",
