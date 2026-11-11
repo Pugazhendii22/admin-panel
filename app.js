@@ -3699,35 +3699,43 @@ function declaredBlock(order) {
     .map((t) => String(t || "").trim())
     .filter(Boolean);
 
-  // A graded step names itself and its option; a question needs its own
-  // wording underneath, since "No" on its own tells an agent nothing.
+  // Each row reads as a question and its answer. A graded step is the step
+  // and the option picked; a yes/no question is the question itself and the
+  // answer given. Not the fault label: "Phone does not power on — Yes" reads
+  // as the opposite of what the seller said.
+  //
+  // `source: 'checkup'` marks an answer the phone measured on itself, in
+  // which case the seller was never asked. Absent on every older order.
   const rows = [
     ...free.map((s) => ({
       what: s.category,
-      sub: s.choice,
-      said: "—",
+      said: s.choice || "—",
+      measured: false,
     })),
     ...clean.map((a) => ({
-      what: a.label || a.question,
-      sub: a.label ? a.question : "",
+      what: a.question || a.label,
       said: a.answeredYes ? "Yes" : "No",
+      measured: a.source === "checkup",
     })),
   ];
+  const measuredCount = rows.filter((r) => r.measured).length;
 
   return `
     <details class="job-detail">
-      <summary>Seller said fine — ${
-        rows.length ? `${rows.length} to verify` : "nothing"
-      }</summary>
+      <summary>${
+        measuredCount ? "Said fine or checked by phone" : "Seller said fine"
+      } — ${rows.length ? `${rows.length} to verify` : "nothing"}</summary>
       ${rows
         .map(
           (r) => `
         <div class="job-detail__row">
           <span class="job-detail__what">
             ${escapeHtml(String(r.what || ""))}
-            ${r.sub ? `<span class="cell-sub">${escapeHtml(String(r.sub))}</span>` : ""}
+            <span class="cell-sub">${
+              r.measured ? "Checked by the phone" : "Seller's answer"
+            }</span>
           </span>
-          <span class="job-detail__cost">${escapeHtml(r.said)}</span>
+          <span class="job-detail__cost">${escapeHtml(String(r.said))}</span>
         </div>`
         )
         .join("")}
@@ -3961,9 +3969,15 @@ const CONDITION_CHECKS = [
 // one with none of them simply gets no suggestions.
 function declaredClaims(order) {
   const claims = [];
-  const push = (text, isFault, said) => {
+  // `said` names the claim as a fault ("Battery Not Charging"), for the
+  // notes on a charged item. `fine` reads it as the question and its answer,
+  // for the clean ones — a fault name beside "fine" reads backwards.
+  const push = (text, isFault, said, { fine, measured = false } = {}) => {
     const t = String(text || "").trim();
-    if (t) claims.push({ text: t, isFault, said: String(said || t).trim() });
+    if (t) {
+      const name = String(said || t).trim();
+      claims.push({ text: t, isFault, said: name, fine: fine || name, measured });
+    }
   };
 
   for (const l of Array.isArray(order.quote?.lines) ? order.quote.lines : []) {
@@ -3976,7 +3990,12 @@ function declaredClaims(order) {
     // `isFault` rather than `answeredYes`: whether an answer was the costly one
     // depends on how the question was phrased, and "has this had water damage?
     // — yes" is the good answer to nobody.
-    push(`${a.label || ""} ${a.question || ""}`, !!a.isFault, a.label || a.question);
+    push(`${a.label || ""} ${a.question || ""}`, !!a.isFault, a.label || a.question, {
+      fine: a.question
+        ? `${a.question} ${a.answeredYes ? "Yes" : "No"}`
+        : a.label,
+      measured: a.source === "checkup",
+    });
   }
   return claims;
 }
@@ -3996,7 +4015,15 @@ function checkSuggestion(check, claims) {
   // A fault outranks a clean claim: if any wording matches and was charged
   // for, that is the one worth going to look at.
   const fault = matches.find((c) => c.isFault);
-  if (!fault) return { answer: "pass", note: `Seller said fine: ${matches[0].said}` };
+  if (!fault) {
+    const m = matches[0];
+    return {
+      answer: "pass",
+      note: m.measured
+        ? `Phone checked fine: ${m.fine}`
+        : `Seller said fine: ${m.fine}`,
+    };
+  }
 
   // The same defect listed twice at two severities. Without a word saying
   // which, neither row is the seller's claim, so the note goes on both and the
