@@ -39,7 +39,9 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* Poppins, as in the phone app. The system stack is only the fallback for
+     a first load with no network, when the web font cannot arrive. */
+  font-family: "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: var(--bg);
   color: var(--text);
   font-size: 14px;
@@ -976,44 +978,6 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
   border-radius: var(--radius-sm);
 }
 
-/* The inspector's job list: cards, not a table. They read this one-handed,
-   outdoors, on a phone. */
-.job-card {
-  padding: 14px;
-  margin-bottom: 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-}
-
-.job-card__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.job-card__payout {
-  margin: 6px 0;
-  font-size: 1.15rem;
-  font-weight: 600;
-}
-
-.job-card__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.job-card__actions .status-select {
-  flex: 1 1 160px;
-  min-height: 44px;
-}
-
 /* Pickup details on an inspector's job card. */
 .job-card__who {
   margin-top: 6px;
@@ -1438,3 +1402,682 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
   background: var(--warning-soft, #fff8e1);
   font-size: 13px;
 }
+
+
+/* =========================================================================
+   Step by step flows
+   =========================================================================
+   The inspector's pickup and the admin's order sheet. Both are read on a
+   phone, one handed, so both are a short stack of steps with one job each
+   and the next action pinned to the bottom of the screen.
+
+   Sizes come from one type scale and one spacing scale, named below, so
+   nothing in this section invents a value of its own. */
+
+:root {
+  --sp-25: 2px;
+  --sp-50: 4px;
+  --sp-75: 8px;
+  --sp-100: 12px;
+  --sp-200: 16px;
+  --sp-300: 24px;
+  --sp-400: 32px;
+  --sp-600: 48px;
+  --r-lg: 8px;
+  --r-xl: 12px;
+  --r-2xl: 16px;
+  --r-full: 9999px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Dark on the brand green rather than white: white on #32CD32 is about
+     2:1, which disappears in daylight. */
+  --on-primary: #0B2A0B;
+}
+
+.heading-5 { font-size: 1.5rem; line-height: 2rem; font-weight: 600; margin: 0; text-wrap: balance; }
+.heading-6 { font-size: 1.25rem; line-height: 1.75rem; font-weight: 600; margin: 0; text-wrap: balance; }
+.title-1 { font-size: 1.25rem; line-height: 1.75rem; font-weight: 500; }
+.title-2 { font-size: 1.125rem; line-height: 1.75rem; font-weight: 500; }
+.title-3 { font-size: 1rem; line-height: 1.5rem; font-weight: 500; }
+.body-4 { font-size: 0.875rem; line-height: 1.25rem; font-weight: 600; }
+.body-6 { font-size: 0.875rem; line-height: 1.25rem; font-weight: 400; }
+.button-md { font-size: 1rem; line-height: 1.5rem; font-weight: 600; }
+.button-sm { font-size: 0.875rem; line-height: 1.25rem; font-weight: 600; }
+.button-xsm { font-size: 0.75rem; line-height: 1rem; font-weight: 600; }
+.caption-2 { font-size: 0.875rem; line-height: 1.25rem; font-weight: 400; color: var(--text-secondary); margin: 0; text-wrap: pretty; }
+.caption-3 { font-size: 0.75rem; line-height: 1rem; font-weight: 600; color: var(--text-secondary); }
+.caption-4 { font-size: 0.75rem; line-height: 1rem; font-weight: 500; color: var(--text-secondary); }
+.caption-5 { font-size: 0.75rem; line-height: 1rem; font-weight: 400; color: var(--text-secondary); }
+
+/* --- the one button both flows use --- */
+
+.btn-flow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-75);
+  /* 48px: pressed with a thumb, outdoors, often in a hurry. */
+  min-height: 48px;
+  padding: var(--sp-75) var(--sp-100);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: opacity 300ms var(--ease), transform 300ms var(--ease);
+}
+.btn-flow:hover:not(:disabled) { opacity: 0.86; }
+.btn-flow:active:not(:disabled) { transform: scale(0.98); }
+.btn-flow:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-flow--primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+.btn-flow:focus-visible,
+.stepper__btn:focus-visible,
+.od__tab:focus-visible,
+.od__close:focus-visible,
+.flow__back:focus-visible,
+.qnav__toggle:focus-visible,
+.flow .ck-pick:focus-visible,
+.flow .check__btn:focus-visible {
+  outline: 2px solid var(--primary-dark);
+  outline-offset: 2px;
+}
+
+/* --- the list of pickups --- */
+
+/* Its own gutter: this panel sits outside `.content`, and the card that
+   used to wrap it was what kept it off the edge of the screen. One column,
+   capped, so on a laptop it stays the width of the phone it was made for. */
+.pickups {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: var(--sp-300) var(--sp-200) calc(var(--sp-300) + var(--safe-b));
+}
+.pickups__head { margin-bottom: var(--sp-200); }
+.pickups__head .caption-2 { margin-top: var(--sp-50); }
+#tab-inspector.is-flow .pickups__head { display: none; }
+
+#inspector-list { display: flex; flex-direction: column; gap: var(--sp-100); }
+#inspector-list > .empty { margin: 0; }
+
+.job {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-100);
+  padding: var(--sp-200);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2xl);
+}
+.job__top,
+.job__main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-100);
+}
+.job__main { align-items: flex-start; }
+.job__device { min-width: 0; }
+.job__payout,
+.flow__payout {
+  flex: none;
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+/* Whole, never cut short: half an address finds nobody's door. */
+.job__address { overflow-wrap: anywhere; }
+
+/* --- one pickup, as steps --- */
+
+.flow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-200);
+  /* Clears the tab bar when a step change scrolls the flow to its top. */
+  scroll-margin-top: 120px;
+}
+
+.flow__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-100);
+}
+.flow__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-50);
+  min-height: 44px;
+  padding: 0 var(--sp-75) 0 0;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.flow__device {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-100);
+  padding: var(--sp-200);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2xl);
+}
+
+.stepper {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-50);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.stepper__btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-50);
+  width: 100%;
+  min-height: 56px;
+  padding: var(--sp-50) 0;
+  border: none;
+  border-radius: var(--r-xl);
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+.stepper__dot {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-full);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  transition: transform 300ms var(--ease), opacity 300ms var(--ease);
+}
+.stepper__btn.is-done .stepper__dot {
+  background: var(--primary-soft);
+  border-color: var(--primary-soft);
+  color: var(--on-primary-soft);
+}
+.stepper__btn.is-current .stepper__dot {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+  transform: scale(1.08);
+}
+.stepper__btn.is-current .stepper__label { color: var(--text); }
+
+.flow__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-100);
+  animation: flow-in 500ms var(--ease);
+}
+@keyframes flow-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.flow__title { margin-bottom: var(--sp-50); }
+.flow__empty {
+  margin: 0;
+  padding: var(--sp-300) var(--sp-200);
+  text-align: center;
+  color: var(--text-secondary);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2xl);
+}
+
+.flow__card {
+  padding: var(--sp-200);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2xl);
+}
+.flow__card .job-card__who { margin: 0; font-size: 1rem; line-height: 1.5rem; }
+.flow__card .job-card__address {
+  margin: var(--sp-50) 0;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  color: var(--text);
+}
+
+/* Directions and Call: the two things pressed before the door is reached. */
+.flow__links {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: var(--sp-75);
+}
+.flow__links .btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: var(--sp-75) var(--sp-100);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: none;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  text-decoration: none;
+}
+.flow__links .btn--primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+
+.flow__field { display: flex; flex-direction: column; gap: var(--sp-50); }
+.flow__field .status-select {
+  width: 100%;
+  min-height: 48px;
+  padding: var(--sp-75) var(--sp-100);
+  border-radius: var(--r-xl);
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+
+/* The blocks the steps are made of. Same markup as ever; here they are
+   cards of their own rather than rows inside one long card. */
+.flow .job-note {
+  margin: 0;
+  padding: var(--sp-100);
+  border-radius: var(--r-xl);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+.flow .job-detail,
+.od .job-detail {
+  margin: 0;
+  padding: var(--sp-200);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2xl);
+}
+.flow .job-detail > summary,
+.od .job-detail > summary {
+  padding: 0 0 var(--sp-75);
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+  list-style: none;
+}
+.flow .job-detail > summary::-webkit-details-marker,
+.od .job-detail > summary::-webkit-details-marker { display: none; }
+.flow .job-detail__row,
+.od .job-detail__row {
+  padding: var(--sp-100) 0;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+/* The verdict of a phone test, as a pill: scanned down the right edge
+   faster than a column of words. */
+.flow .job-detail__cost,
+.od .job-detail__cost { font-weight: 500; text-align: right; max-width: 55%; }
+.flow .job-detail__row--fault .job-detail__cost,
+.od .job-detail__row--fault .job-detail__cost {
+  padding: var(--sp-25) var(--sp-75);
+  border-radius: var(--r-full);
+  background: var(--error-soft);
+}
+
+/* --- the Check step: one question on screen --- */
+
+.qnav { display: flex; flex-direction: column; gap: var(--sp-75); }
+.qnav__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-100);
+}
+.qnav__toggle {
+  min-height: 32px;
+  padding: var(--sp-50) var(--sp-100);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-full);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+}
+.qnav__track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--r-full);
+  background: var(--border-strong);
+}
+.qnav__fill {
+  height: 100%;
+  border-radius: var(--r-full);
+  background: var(--primary);
+  transform-origin: left center;
+  transition: transform 500ms var(--ease);
+}
+.qnav__group { text-transform: uppercase; letter-spacing: 0.03em; }
+
+.qfoot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--sp-75);
+}
+
+.flow .job-detail--checks > .job-detail__passed {
+  padding: 0 0 var(--sp-100);
+  border: none;
+}
+.flow .check-group { margin: var(--sp-300) 0 0; }
+
+/* A question and its answers stacked, each answer a full width button. The
+   old rows were a line of text with two small pills at the end of it. */
+.flow .ck-row,
+.flow .check {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-100);
+  padding: var(--sp-200) 0 0;
+  border: none;
+  animation: flow-in 500ms var(--ease);
+}
+.flow .ck-row__q,
+.flow .check__what {
+  margin: 0;
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  font-weight: 500;
+  text-wrap: pretty;
+}
+.flow .ck-row__q .cell-sub,
+.flow .check__what .cell-sub { margin-top: var(--sp-50); font-size: 0.875rem; line-height: 1.25rem; }
+.flow .check__declared { margin-top: var(--sp-75); }
+
+.flow .ck-row__opts { flex-direction: column; flex-wrap: nowrap; gap: var(--sp-75); }
+.flow .check__answer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--sp-75);
+}
+.flow .ck-pick,
+.flow .check__btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-100);
+  width: 100%;
+  min-height: 56px;
+  padding: var(--sp-100) var(--sp-200);
+  border-radius: var(--r-xl);
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 500;
+  transition: transform 300ms var(--ease), opacity 300ms var(--ease);
+}
+.flow .check__btn { justify-content: center; font-weight: 600; }
+.flow .ck-pick:active,
+.flow .check__btn:active { transform: scale(0.98); }
+.flow .ck-pick.is-on,
+.flow .check__btn.is-on { font-weight: 600; }
+.flow .ck-pick.is-on { color: var(--error); }
+.flow .ck-pick--clean.is-on { color: var(--on-primary-soft); }
+.flow .check__btn--pass.is-on { color: var(--on-primary-soft); }
+.flow .check__btn--fail.is-on { color: var(--error); }
+.flow .ck-pick__pct { flex: none; margin: 0; }
+
+/* --- the Confirm step --- */
+
+.flow .ck-suggest {
+  margin: 0;
+  padding: var(--sp-200);
+  border-radius: var(--r-2xl);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+.flow .ck-suggest .btn {
+  min-height: 44px;
+  padding: var(--sp-75) var(--sp-100);
+  border-radius: var(--r-xl);
+  font-size: 0.875rem;
+}
+[data-pay-slot]:empty { display: none; }
+
+.flow .inspection {
+  margin: 0;
+  padding: var(--sp-200);
+  border-radius: var(--r-2xl);
+}
+.flow .inspection__head { font-size: 1rem; line-height: 1.5rem; }
+.flow .inspection__row { flex-direction: column; gap: var(--sp-75); }
+.flow .inspection__amount {
+  min-height: 64px;
+  padding: var(--sp-75) var(--sp-200);
+  border-radius: var(--r-xl);
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 600;
+}
+.flow .inspection__reason {
+  min-height: 48px;
+  padding: var(--sp-75) var(--sp-100);
+  border-radius: var(--r-xl);
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+.flow .inspection [data-confirm] {
+  min-height: 56px;
+  border-radius: var(--r-xl);
+  background: var(--primary);
+  color: var(--on-primary);
+  box-shadow: none;
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+.flow .inspection__verdict { border-radius: var(--r-xl); padding: var(--sp-100); }
+
+/* Back and Next, always under the thumb. Flat, and the page's own colour,
+   so it reads as part of the screen rather than a card laid over it. */
+.flow__bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: var(--sp-75);
+  margin-top: var(--sp-75);
+  padding: var(--sp-100) 0 calc(var(--sp-100) + var(--safe-b));
+  background: var(--bg);
+}
+/* On the last step there is no Next, so Back takes the whole bar. */
+.flow__bar:has([data-job-next][hidden]) [data-job-prev] { grid-column: 1 / -1; }
+
+/* --- the admin's order sheet --- */
+
+.modal--sheet {
+  width: 560px;
+  max-width: calc(100vw - 32px);
+  height: min(760px, calc(100dvh - 48px));
+  overflow: hidden;
+  border-radius: var(--r-2xl);
+}
+.modal--sheet[open] { display: flex; animation: modal-in 500ms var(--ease); }
+.modal--sheet .modal-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  width: auto;
+  min-height: 0;
+  padding: 0;
+}
+
+.od__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-100);
+  padding: var(--sp-200) var(--sp-200) var(--sp-75);
+}
+.modal--sheet .od__bar h3 { margin: 0; font-size: 1.25rem; }
+.od__close {
+  min-height: 44px;
+  padding: var(--sp-75) var(--sp-100);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.od__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 var(--sp-200) var(--sp-200);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+.od__body .detail-device { margin: 0; padding: var(--sp-75) 0; border: none; }
+
+/* The steps, as a row that scrolls sideways on a narrow phone and stays put
+   while the step under it scrolls. */
+.od__tabs {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  gap: var(--sp-75);
+  margin: 0 calc(var(--sp-200) * -1);
+  padding: var(--sp-75) var(--sp-200) var(--sp-100);
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: var(--surface);
+}
+.od__tabs::-webkit-scrollbar { display: none; }
+.od__tab {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--sp-75);
+  min-height: 44px;
+  padding: var(--sp-75) var(--sp-100);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-full);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 300ms var(--ease);
+}
+.od__tab:hover { opacity: 0.8; }
+.od__n {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-full);
+  background: var(--bg);
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+.od__tab.is-current {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--on-primary-soft);
+}
+.od__tab.is-current .od__n { background: var(--primary); color: var(--on-primary); }
+
+.od__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-100);
+  animation: flow-in 500ms var(--ease);
+}
+.od__panel .detail-heading:first-child { margin-top: 0; }
+.od__panel .detail-row { padding: var(--sp-100) 0; margin: 0; }
+.od__panel .job-detail { background: var(--bg); border: none; border-radius: var(--r-xl); }
+.od__panel .job-note { margin: 0; border-radius: var(--r-xl); padding: var(--sp-100); }
+
+.od__foot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: var(--sp-75);
+  padding: var(--sp-100) var(--sp-200) calc(var(--sp-100) + var(--safe-b));
+  background: var(--bg);
+}
+
+/* A phone gets the whole screen: a sheet floating in a 360px window wastes
+   the little room there is. */
+@media (max-width: 720px) {
+  .modal--sheet {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    border-radius: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow__panel,
+  .od__panel,
+  .flow .ck-row,
+  .flow .check,
+  .modal--sheet[open] { animation: flow-fade 300ms var(--ease); }
+  .qnav__fill,
+  .stepper__dot,
+  .btn-flow,
+  .flow .ck-pick,
+  .flow .check__btn { transition: none; }
+  .stepper__btn.is-current .stepper__dot { transform: none; }
+}
+@keyframes flow-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* A neutral note is the page's own colour, which on the page itself is no
+   box at all. Inside a step it gets a surface to sit on. */
+.flow .job-note:not(.job-note--warn):not(.job-note--good) {
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+/* With every panel inside it hidden, `.content` is 74px of padding around
+   nothing: a blank band above the inspector's screen. */
+.content:not(:has(> .tab-panel:not([hidden]))) { display: none; }
+
+/* One question at a time: the card is the question. Its summary line and the
+   note under it are shown again by "Show all". */
+.flow.is-single .job-detail--checks > summary,
+.flow.is-single .job-detail--checks > .job-detail__passed { display: none; }
+.flow.is-single .ck-row,
+.flow.is-single .check { padding-top: 0; }
+.qnav__row > .caption-5 { min-width: 0; }
+
+/* The step is already titled "Confirm the amount"; the block's own heading
+   says it a second time. Kept once a finding is filed, where it carries the
+   settled figure. */
+.flow .inspection:not(.inspection--done) .inspection__head { display: none; }
