@@ -1680,6 +1680,19 @@ const RULE_DOCS = [
     used: "Step 5 of the sell wizard, beside the payout.",
   },
   {
+    id: "scrap_values",
+    title: "Scrap prices — phones that will not switch on",
+    kind: "scrap",
+    used:
+      "A flat amount, not a percentage, paid for a handset that does not " +
+      "power on. It replaces the grading steps entirely: the seller is " +
+      "shown this figure and nothing further is deducted from it, so it is " +
+      "the payout, margin included. Most specific row wins — brand and " +
+      "series, then the brand on its own, then a row with both left blank " +
+      "as the catch-all. With no row that covers a phone, the sell flow " +
+      "falls back to grading it the old way.",
+  },
+  {
     id: "checkup_results",
     title: "Auto-check findings",
     kind: "checkup",
@@ -1776,6 +1789,10 @@ function pricingDoc(id) {
 function guessKind(options) {
   const first = options.find((o) => o && typeof o === "object") || {};
   if ("question" in first) return "questions";
+  // Checked before `key`: a scrap row carries rupees and no percentage at
+  // all, so opening it in the percentage editor would show every amount as
+  // a deduction and silently clamp ₹1,500 to 100 on the next save.
+  if ("amount" in first) return "scrap";
   if ("key" in first && !("icon_url" in first)) return "checkup";
   return "options";
 }
@@ -1788,6 +1805,7 @@ const EDITED_FIELDS = {
   options: ["label", "percent", "icon_url"],
   questions: ["question", "help", "label", "percent", "deduct_on", "gates"],
   checkup: ["key", "label", "percent", "same_as"],
+  scrap: ["brand", "series", "amount"],
 };
 
 async function loadPricingRules() {
@@ -1933,6 +1951,45 @@ function optionRow(d, o, i, base) {
       </div>
     </label>`;
 
+  if (d.kind === "scrap") {
+    // Rupees, so no percentage field and no money preview — the number in
+    // the box already is the money. Brand and series are datalists rather
+    // than selects: the series is worked out from the model name by
+    // `deriveSeries`, so the list is a convenience, and a brand added to the
+    // catalogue after this panel last loaded must still be priceable.
+    const amount = amountOf(o);
+    const brand = String(o.brand || "");
+    const series = String(o.series || "");
+
+    return `
+      <div class="rule-row rule-row--wide">
+        <div class="rule-row__fields">
+          <label class="field field--tight field--grow">
+            <span>Brand</span>
+            <input type="text" data-index="${i}" data-field="brand"
+                   list="scrap-brands" value="${escapeHtml(brand)}"
+                   placeholder="Any brand" />
+          </label>
+          <label class="field field--tight field--grow">
+            <span>Series</span>
+            <input type="text" data-index="${i}" data-field="series"
+                   list="scrap-series" value="${escapeHtml(series)}"
+                   placeholder="${brand ? "Whole brand" : "Any series"}" />
+          </label>
+          <label class="field field--tight">
+            <span>We pay</span>
+            <div class="rule-pct">
+              <input type="number" min="0" step="50" inputmode="numeric"
+                     data-index="${i}" data-field="amount" value="${amount}" />
+              <span class="rule-pct__money">${escapeHtml(money(amount))}</span>
+            </div>
+          </label>
+          <p class="cell-sub rule-scrap__scope">${escapeHtml(scrapScope(o))}</p>
+        </div>
+        ${move}
+      </div>`;
+  }
+
   if (d.kind === "questions") {
     return `
       <div class="rule-row rule-row--wide">
@@ -2035,6 +2092,25 @@ function deductOn(o) {
   return String(o?.deduct_on || "no").toLowerCase() === "yes" ? "yes" : "no";
 }
 
+function amountOf(o) {
+  const raw = o?.amount;
+  const n = typeof raw === "number" ? raw : Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+}
+
+// Says in words which phones a scrap row covers, because "blank means all"
+// is the sort of rule that reads as an empty field left by mistake.
+function scrapScope(o) {
+  const brand = String(o?.brand || "").trim();
+  const series = String(o?.series || "").trim();
+  if (!brand && !series) return "Every phone with no more specific row below.";
+  if (brand && !series) return `Every ${brand} without its own series row.`;
+  if (!brand && series) {
+    return `Any brand's “${series}” — set a brand too unless that is meant.`;
+  }
+  return `${brand} · ${series}.`;
+}
+
 // Only one gate is understood by the app — see `DeviceQuestion.fromMap`, which
 // treats anything it does not recognise as gating nothing.
 function gatesOf(o) {
@@ -2086,8 +2162,21 @@ pricingHost?.addEventListener("input", (e) => {
         ? money(Math.round((base * option.percent) / 100))
         : "—";
     }
+  } else if (field === "amount") {
+    const n = Math.round(Number(input.value));
+    option.amount = Number.isFinite(n) && n > 0 ? n : 0;
+    const label = input.parentElement?.querySelector(".rule-pct__money");
+    if (label) label.textContent = money(option.amount);
   } else {
     option[field] = input.value;
+    if (field === "brand" || field === "series") {
+      // The scope sentence is the only thing saying which phones a row
+      // covers, so it has to follow the typing rather than wait for a save.
+      const scope = input
+        .closest(".rule-row")
+        ?.querySelector(".rule-scrap__scope");
+      if (scope) scope.textContent = scrapScope(option);
+    }
   }
 
   markDirty(d, card);
@@ -2189,6 +2278,7 @@ function blankOption(kind) {
     return { question: "", help: "", label: "", percent: 0, deduct_on: "no" };
   }
   if (kind === "checkup") return { key: "", label: "", percent: 0, same_as: "" };
+  if (kind === "scrap") return { brand: "", series: "", amount: 0 };
   return { label: "", percent: 0, icon_url: "" };
 }
 
@@ -2215,6 +2305,14 @@ function optionForSave(option, kind) {
       // has had since before gating existed.
       const gate = String(option.gates || "").trim();
       if (gate) out.gates = gate;
+    } else if (key === "amount") {
+      // No upper bound: this is rupees, not a percentage. Negative is
+      // refused rather than clamped silently to nothing, because a scrap
+      // price of zero and a typo are different mistakes.
+      out.amount = amountOf(option);
+    } else if (key === "brand") {
+      // Lower-cased to match the brand document ids the app looks up with.
+      out.brand = String(option.brand || "").trim().toLowerCase();
     } else if (key === "icon_url") {
       out.icon_url = String(option.icon_url || "").trim();
     } else {
@@ -2234,6 +2332,13 @@ async function savePricingDoc(d, btn) {
       ? !String(o.question || "").trim() || !String(o.label || "").trim()
       : d.kind === "checkup"
       ? !String(o.key || "").trim() || !String(o.label || "").trim()
+      // A scrap row names no choice and needs no label: brand and series are
+      // both allowed to be blank, which is how the catch-all is written. The
+      // amount is what has to be there, and zero is a real answer — a shop
+      // that will take the phone away for nothing — so only a row with no
+      // usable number at all is refused.
+      : d.kind === "scrap"
+      ? !Number.isFinite(Number(o.amount))
       : !String(o.label || "").trim()
   );
   if (blanks.length) {
@@ -2242,6 +2347,8 @@ async function savePricingDoc(d, btn) {
         ? "Every auto-check rule needs a test and a name on the quote."
         : d.kind === "questions"
         ? "Every question needs its wording and a name for the quote."
+        : d.kind === "scrap"
+        ? "Every scrap row needs an amount in rupees."
         : "Every option needs a label.",
       "error"
     );
@@ -2339,6 +2446,47 @@ function renderPricingDatalists() {
       .map((name) => `<option value="${escapeHtml(name)}"></option>`)
       .join("");
   }
+
+  const brands = el("scrap-brands");
+  if (brands && !brands.childElementCount) {
+    brands.innerHTML = KNOWN_BRANDS.map(
+      (name) =>
+        `<option value="${escapeHtml(name.toLowerCase())}">${escapeHtml(name)}</option>`
+    ).join("");
+  }
+
+  const seriesList = el("scrap-series");
+  if (seriesList) {
+    seriesList.innerHTML = scrapSeriesOptions()
+      .map((name) => `<option value="${escapeHtml(name)}"></option>`)
+      .join("");
+  }
+}
+
+// Series names to offer on a scrap row.
+//
+// Derived from whichever brand the Catalog tab has open, because loading
+// every brand's models to fill a datalist would be thousands of reads for a
+// convenience. Series already written into scrap rows are included too, so
+// the list does not shrink to nothing on a fresh sign-in and leave earlier
+// rows looking like typos. The field stays free text either way — the only
+// thing that has to match is what `deriveSeries()` produces from the model
+// name, and typing it by hand is always allowed.
+function scrapSeriesOptions() {
+  const names = new Set();
+  const brandId = currentBrandId();
+  for (const m of allModels || []) {
+    const series = deriveSeries(m.model, brandId);
+    if (series) names.add(series);
+  }
+  for (const d of pricingDocs || []) {
+    if (d.kind !== "scrap") continue;
+    for (const o of d.options) {
+      const series = String(o.series || "").trim();
+      if (series) names.add(series);
+    }
+  }
+  return [...names].sort();
 }
 
 // ---------------------------------------------------------------------------

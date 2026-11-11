@@ -1273,3 +1273,11 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
   font-weight: 600;
 }
 .inspection__faults:empty { display: none; }
+
+/* The sentence under a scrap row saying which phones it covers. Full width
+   so it sits under the fields rather than squeezing between them, since a
+   blank brand or series is meaningful here and has to be spelled out. */
+.rule-scrap__scope {
+  flex-basis: 100%;
+  margin: 0;
+}

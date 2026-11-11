@@ -232,6 +232,12 @@
         <!-- Filled from the loaded rules — see renderPricingDatalists(). -->
         <datalist id="checkup-test-keys"></datalist>
         <datalist id="rule-fault-names"></datalist>
+        <!-- Scrap rows key on the brand document id and on the series name
+             `deriveSeries()` produces. Both are datalists, not selects: a
+             brand or a series the panel has not loaded yet must still be
+             priceable by typing it. -->
+        <datalist id="scrap-brands"></datalist>
+        <datalist id="scrap-series"></datalist>
       </section>
 
       <!-- ----- Second-hand listings tab ----- -->
