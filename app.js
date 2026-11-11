@@ -1392,6 +1392,56 @@ function renderOrders(orders) {
 const orderModal = el("order-modal");
 el("order-modal-close").addEventListener("click", () => orderModal.close());
 
+// The sheet is read as steps rather than one long scroll: the quote, what
+// the seller said, what the phone measured, where the order stands, and
+// where to collect it. Which step is showing lives here because the sheet's
+// markup is rebuilt each time an order is opened.
+let orderStep = 0;
+
+function applyOrderStep() {
+  const panels = [...orderModal.querySelectorAll("[data-od-panel]")];
+  if (panels.length === 0) return;
+  orderStep = Math.min(Math.max(orderStep, 0), panels.length - 1);
+
+  panels.forEach((panel, i) => {
+    panel.hidden = i !== orderStep;
+  });
+  orderModal.querySelectorAll("[data-od-step]").forEach((tab) => {
+    const on = Number(tab.dataset.odStep) === orderStep;
+    tab.classList.toggle("is-current", on);
+    tab.setAttribute("aria-selected", String(on));
+    // Keeps the current step in view when the row of steps is wider than
+    // the phone.
+    if (on) tab.scrollIntoView({ block: "nearest", inline: "center" });
+  });
+
+  const prev = el("order-modal-prev");
+  const next = el("order-modal-next");
+  prev.disabled = orderStep === 0;
+  const last = orderStep === panels.length - 1;
+  next.textContent = last
+    ? "Done"
+    : `Next: ${orderModal.querySelector(`[data-od-step="${orderStep + 1}"]`)?.dataset.label || ""}`;
+  el("order-detail-list").scrollTop = 0;
+}
+
+el("order-modal-prev").addEventListener("click", () => {
+  orderStep -= 1;
+  applyOrderStep();
+});
+el("order-modal-next").addEventListener("click", () => {
+  const count = orderModal.querySelectorAll("[data-od-panel]").length;
+  if (orderStep >= count - 1) return orderModal.close();
+  orderStep += 1;
+  applyOrderStep();
+});
+el("order-detail-list").addEventListener("click", (e) => {
+  const tab = e.target.closest("[data-od-step]");
+  if (!tab) return;
+  orderStep = Number(tab.dataset.odStep);
+  applyOrderStep();
+});
+
 // Laid out as a receipt rather than a field dump: an order document carries a
 // nested `quote` (the grading wizard's deduction breakdown) and six loose
 // address fields, which as raw JSON are unreadable on a phone. Every key
@@ -1420,7 +1470,21 @@ function showOrderDetails(order) {
     `<div class="detail-row"><span class="k">${escapeHtml(label)}</span><span class="v">${escapeHtml(String(value))}</span></div>`;
   const heading = (text) => `<div class="detail-heading">${escapeHtml(text)}</div>`;
 
-  const out = [];
+  // The device sits above the steps and stays put; everything after it is
+  // filed under a step. `step()` is safe to call twice with one label, since
+  // two blocks that are each optional can share a step and either may be the
+  // first to need it.
+  const head = [];
+  const steps = [];
+  let out = head;
+  const step = (label) => {
+    let found = steps.find((s) => s.label === label);
+    if (!found) {
+      found = { label, items: [] };
+      steps.push(found);
+    }
+    out = found.items;
+  };
 
   // --- device ---
   const subtitle = [order.brand, order.storage].filter(Boolean).join(" · ");
@@ -1439,7 +1503,7 @@ function showOrderDetails(order) {
   `);
 
   // --- payout ---
-  out.push(heading("Payout"));
+  step("Quote");
   if (order.basePrice != null) out.push(row("Base price", money(order.basePrice)));
 
   // `quote.lines` is what the grading wizard writes: one entry per deduction
@@ -1497,13 +1561,14 @@ function showOrderDetails(order) {
   // check.
   const declared = declaredBlock(order);
   if (declared) {
-    out.push(heading("Seller's declaration"));
+    step("Seller said");
     out.push(declared);
   }
 
   // --- before pickup ---
   const briefing = briefingBlock(order);
   if (briefing) {
+    step("Phone tests");
     out.push(heading("Before pickup"));
     out.push(briefing);
   }
@@ -1511,12 +1576,13 @@ function showOrderDetails(order) {
   // --- what the phone said about itself ---
   const selfCheck = checkupBlock(order);
   if (selfCheck) {
+    step("Phone tests");
     out.push(heading("Phone self-check"));
     out.push(selfCheck);
   }
 
   // --- status ---
-  out.push(heading("Status"));
+  step("Status");
   // First, because it is what the caller on the phone will have quoted.
   if (order.reference) out.push(row("Reference", order.reference));
   if (order.customerName) out.push(row("Seller", order.customerName));
@@ -1560,10 +1626,13 @@ function showOrderDetails(order) {
   if (order.createdAt) out.push(row("Placed", formatDate(order.createdAt)));
   if (order.updatedAt) out.push(row("Last updated", formatDate(order.updatedAt)));
   if (order.quoteValidUntil) out.push(row("Quote valid until", formatDate(order.quoteValidUntil)));
+  // Each check the agent recorded, not just the count above. The same
+  // record the inspector's own screen shows once a finding is filed.
+  if (order.inspection) out.push(recordedChecksBlock(order));
 
   // --- pickup ---
+  step("Pickup");
   if (order.addressFullText || order.addressLabel) {
-    out.push(heading("Pickup"));
     if (order.addressLabel) out.push(row("Label", order.addressLabel));
     if (order.addressFullText) {
       out.push(`<p class="detail-address">${escapeHtml(order.addressFullText)}</p>`);
@@ -1595,8 +1664,36 @@ function showOrderDetails(order) {
     }
   }
 
-  el("order-detail-list").innerHTML = out.join("");
+  el("order-detail-list").innerHTML = `
+    ${head.join("")}
+    <div class="od__tabs" role="tablist" aria-label="Order sections">
+      ${steps
+        .map(
+          (s, i) => `
+        <button type="button" class="od__tab button-sm" role="tab"
+                data-od-step="${i}" data-label="${escapeHtml(s.label)}">
+          <span class="od__n">${i + 1}</span>${escapeHtml(s.label)}
+        </button>`
+        )
+        .join("")}
+    </div>
+    ${steps
+      .map(
+        (s, i) => `
+      <section class="od__panel" role="tabpanel" data-od-panel="${i}" hidden>
+        ${s.items.join("")}
+      </section>`
+      )
+      .join("")}`;
+
+  // Open, all of them: a step that is nothing but headings to tap is the
+  // long card again with extra taps.
+  orderModal.querySelectorAll("details.job-detail").forEach((d) => {
+    d.open = true;
+  });
+  orderStep = 0;
   orderModal.showModal();
+  applyOrderStep();
 }
 
 let orderSearchTimer = null;
@@ -3699,35 +3796,43 @@ function declaredBlock(order) {
     .map((t) => String(t || "").trim())
     .filter(Boolean);
 
-  // A graded step names itself and its option; a question needs its own
-  // wording underneath, since "No" on its own tells an agent nothing.
+  // Each row reads as a question and its answer. A graded step is the step
+  // and the option picked; a yes/no question is the question itself and the
+  // answer given. Not the fault label: "Phone does not power on — Yes" reads
+  // as the opposite of what the seller said.
+  //
+  // `source: 'checkup'` marks an answer the phone measured on itself, in
+  // which case the seller was never asked. Absent on every older order.
   const rows = [
     ...free.map((s) => ({
       what: s.category,
-      sub: s.choice,
-      said: "—",
+      said: s.choice || "—",
+      measured: false,
     })),
     ...clean.map((a) => ({
-      what: a.label || a.question,
-      sub: a.label ? a.question : "",
+      what: a.question || a.label,
       said: a.answeredYes ? "Yes" : "No",
+      measured: a.source === "checkup",
     })),
   ];
+  const measuredCount = rows.filter((r) => r.measured).length;
 
   return `
     <details class="job-detail">
-      <summary>Seller said fine — ${
-        rows.length ? `${rows.length} to verify` : "nothing"
-      }</summary>
+      <summary>${
+        measuredCount ? "Said fine or checked by phone" : "Seller said fine"
+      } — ${rows.length ? `${rows.length} to verify` : "nothing"}</summary>
       ${rows
         .map(
           (r) => `
         <div class="job-detail__row">
           <span class="job-detail__what">
             ${escapeHtml(String(r.what || ""))}
-            ${r.sub ? `<span class="cell-sub">${escapeHtml(String(r.sub))}</span>` : ""}
+            <span class="cell-sub">${
+              r.measured ? "Checked by the phone" : "Seller's answer"
+            }</span>
           </span>
-          <span class="job-detail__cost">${escapeHtml(r.said)}</span>
+          <span class="job-detail__cost">${escapeHtml(String(r.said))}</span>
         </div>`
         )
         .join("")}
@@ -3961,9 +4066,15 @@ const CONDITION_CHECKS = [
 // one with none of them simply gets no suggestions.
 function declaredClaims(order) {
   const claims = [];
-  const push = (text, isFault, said) => {
+  // `said` names the claim as a fault ("Battery Not Charging"), for the
+  // notes on a charged item. `fine` reads it as the question and its answer,
+  // for the clean ones — a fault name beside "fine" reads backwards.
+  const push = (text, isFault, said, { fine, measured = false } = {}) => {
     const t = String(text || "").trim();
-    if (t) claims.push({ text: t, isFault, said: String(said || t).trim() });
+    if (t) {
+      const name = String(said || t).trim();
+      claims.push({ text: t, isFault, said: name, fine: fine || name, measured });
+    }
   };
 
   for (const l of Array.isArray(order.quote?.lines) ? order.quote.lines : []) {
@@ -3976,7 +4087,12 @@ function declaredClaims(order) {
     // `isFault` rather than `answeredYes`: whether an answer was the costly one
     // depends on how the question was phrased, and "has this had water damage?
     // — yes" is the good answer to nobody.
-    push(`${a.label || ""} ${a.question || ""}`, !!a.isFault, a.label || a.question);
+    push(`${a.label || ""} ${a.question || ""}`, !!a.isFault, a.label || a.question, {
+      fine: a.question
+        ? `${a.question} ${a.answeredYes ? "Yes" : "No"}`
+        : a.label,
+      measured: a.source === "checkup",
+    });
   }
   return claims;
 }
@@ -3996,7 +4112,15 @@ function checkSuggestion(check, claims) {
   // A fault outranks a clean claim: if any wording matches and was charged
   // for, that is the one worth going to look at.
   const fault = matches.find((c) => c.isFault);
-  if (!fault) return { answer: "pass", note: `Seller said fine: ${matches[0].said}` };
+  if (!fault) {
+    const m = matches[0];
+    return {
+      answer: "pass",
+      note: m.measured
+        ? `Phone checked fine: ${m.fine}`
+        : `Seller said fine: ${m.fine}`,
+    };
+  }
 
   // The same defect listed twice at two severities. Without a word saying
   // which, neither row is the seller's claim, so the note goes on both and the
@@ -4619,9 +4743,390 @@ function wireInspection(host, orders) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// The inspector's screen: a list of pickups, and one pickup as four steps
+// ---------------------------------------------------------------------------
+//
+// Everything an agent needs used to sit in one long card: the address, what
+// the seller said, the phone's own tests, fourteen questions and the amount
+// box, all at once. It is read standing in a doorway with one hand, so it is
+// now a short list, and a tapped pickup opens as four steps in the order the
+// visit actually happens: get there, read what was claimed, check the phone,
+// confirm the money.
+//
+// Only the layout is new. Every block below is the same function that built
+// the old card, carrying the same data attributes, so `wireChecks` and
+// `wireInspection` find their buttons and inputs exactly as before.
+
+const JOB_STEPS = [
+  { label: "Pickup", title: "Go to the pickup" },
+  { label: "Review", title: "What the seller told us" },
+  { label: "Check", title: "Check the phone" },
+  { label: "Confirm", title: "Confirm the amount" },
+];
+
+// View state, kept outside the DOM because every Firestore snapshot redraws
+// the whole list: without it an agent halfway down the questions would be
+// thrown back to the first step each time anything on the order changed.
+let jobOpenId = null;
+const jobStep = new Map(); // order id -> step index
+const jobQuestion = new Map(); // order id -> question index on the Check step
+const jobShowAll = new Set(); // order ids showing every question at once
+
+// Drawn rather than pulled from an icon font: five glyphs do not justify a
+// network dependency on a screen that has to open on a bad connection.
+const ICONS = {
+  back: `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  next: `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  check: `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+};
+
+function stageLabel(o) {
+  return ORDER_STAGES.find((s) => s.value === o.status)?.label || o.status || "placed";
+}
+
+function stageBadge(o) {
+  return `<span class="badge badge--${o.status === "paid" ? "success" : "warning"}">${escapeHtml(stageLabel(o))}</span>`;
+}
+
+// One row of the list. Only what decides which job to open: the phone, the
+// money, where it is, and how far along it is.
+function jobListCard(o) {
+  const done = !!o.inspection;
+  return `
+    <article class="job">
+      <div class="job__top">
+        <span class="mono caption-4">${escapeHtml(o.reference || o.id.slice(0, 8))}</span>
+        ${stageBadge(o)}
+      </div>
+      <div class="job__main">
+        <div class="job__device">
+          <div class="title-2">${escapeHtml(o.modelName || "Device")}</div>
+          <div class="caption-2">${escapeHtml([o.brand, o.storage].filter(Boolean).join(" · "))}</div>
+        </div>
+        <div class="job__payout">${money(o.finalPayout)}</div>
+      </div>
+      ${o.addressFullText
+        ? `<div class="job__address caption-2">${escapeHtml(String(o.addressFullText))}</div>`
+        : ""}
+      <button type="button" class="btn-flow btn-flow--primary" data-job-open="${escapeHtml(o.id)}">
+        ${done ? "View pickup" : "Start pickup"} ${ICONS.next}
+      </button>
+    </article>`;
+}
+
+function jobStepper(step) {
+  return `
+    <ol class="stepper" aria-label="Steps">
+      ${JOB_STEPS.map(
+        (s, i) => `
+        <li class="stepper__item">
+          <button type="button" class="stepper__btn" data-job-step="${i}"
+                  ${i === step ? 'aria-current="step"' : ""}>
+            <span class="stepper__dot">${i + 1}</span>
+            <span class="stepper__label caption-3">${s.label}</span>
+          </button>
+        </li>`
+      ).join("")}
+    </ol>`;
+}
+
+// A panel that came out empty still says so. A blank step reads as a page
+// that failed to load, and an agent has no way to tell the difference.
+function panelBody(html, emptyText) {
+  return html.trim() ? html : `<p class="flow__empty body-6">${escapeHtml(emptyText)}</p>`;
+}
+
+function jobFlow(o) {
+  const id = escapeHtml(o.id);
+  const links = `${mapLink(o.addressLatitude, o.addressLongitude)}${callLink(o.customerPhone)}`;
+
+  const panels = [
+    // 1 — get there
+    `${briefingBlock(o)}
+     <div class="flow__card">${panelBody(pickupBlock(o), "No address on this order.")}</div>
+     ${links ? `<div class="flow__links">${links}</div>` : ""}
+     <label class="flow__field">
+       <span class="caption-3">Stage</span>
+       <select class="status-select" data-job-id="${id}">
+         ${ORDER_STAGES.map(
+           (s) => `<option value="${s.value}" ${s.value === (o.status || "placed") ? "selected" : ""}>${s.label}</option>`
+         ).join("")}
+       </select>
+     </label>`,
+
+    // 2 — read what was claimed, and what the phone said about itself
+    panelBody(
+      `${conditionBlock(o)}${declaredBlock(o)}${checkupBlock(o)}`,
+      "The seller declared nothing and ran no self check on this order."
+    ),
+
+    // 3 — check the phone, one question at a time
+    `<div class="qnav" data-qnav hidden></div>
+     ${panelBody(checksBlock(o), "No checks were recorded for this pickup.")}
+     <div class="qfoot" data-qfoot hidden></div>`,
+
+    // 4 — the money. The findings total is moved in here after render, so
+    // the figure it suggests sits beside the box it fills.
+    `<div data-pay-slot></div>
+     ${inspectionBlock(o)}`,
+  ];
+
+  return `
+    <div class="flow" data-flow="${id}">
+      <div class="flow__top">
+        <button type="button" class="flow__back button-sm" data-job-close>
+          ${ICONS.back} All pickups
+        </button>
+        ${stageBadge(o)}
+      </div>
+
+      <div class="flow__device">
+        <div>
+          <div class="title-1">${escapeHtml(o.modelName || "Device")}</div>
+          <div class="caption-2">${escapeHtml(
+            [o.brand, o.storage, o.reference || o.id.slice(0, 8)].filter(Boolean).join(" · ")
+          )}</div>
+        </div>
+        <div class="flow__payout">${money(o.finalPayout)}</div>
+      </div>
+
+      ${jobStepper(jobStep.get(o.id) || 0)}
+
+      ${panels
+        .map(
+          (html, i) => `
+        <section class="flow__panel" data-panel="${i}" hidden>
+          <h3 class="flow__title heading-6">${JOB_STEPS[i].title}</h3>
+          ${html}
+        </section>`
+        )
+        .join("")}
+
+      <div class="flow__bar">
+        <button type="button" class="btn-flow" data-job-prev>${ICONS.back} Back</button>
+        <button type="button" class="btn-flow btn-flow--primary" data-job-next></button>
+      </div>
+    </div>`;
+}
+
+// The questions on the Check step, in order. Both shapes of row: the
+// configured checklist's (`data-ck-row`) and the built-in pass/fail list's
+// (`data-check-row`).
+function questionRows(flow) {
+  return [...flow.querySelectorAll('[data-panel="2"] [data-ck-row], [data-panel="2"] [data-check-row]')];
+}
+
+const isAnswered = (row) => !!row.querySelector(".is-on");
+
+// The group heading a row sits under, read back off the markup so the
+// stepper needs no second copy of the checklist.
+function groupOf(row) {
+  for (let n = row.previousElementSibling; n; n = n.previousElementSibling) {
+    if (n.classList.contains("check-group")) return n.textContent.trim();
+  }
+  return "";
+}
+
+// Shows one question, or all of them, and says how far through the list the
+// agent is. Called after every answer, so the count keeps up without a
+// redraw of the card.
+function applyQuestionView(flow) {
+  const id = flow.dataset.flow;
+  const nav = flow.querySelector("[data-qnav]");
+  const foot = flow.querySelector("[data-qfoot]");
+  const rows = questionRows(flow);
+  if (!nav || !foot) return;
+
+  // A filed pickup has a record here, not questions. Nothing to step through.
+  if (rows.length === 0) {
+    nav.hidden = true;
+    foot.hidden = true;
+    return;
+  }
+
+  const all = jobShowAll.has(id);
+  if (!jobQuestion.has(id)) {
+    // Opens on the first one still unanswered, so coming back to a pickup
+    // carries on where it was left.
+    const first = rows.findIndex((r) => !isAnswered(r));
+    jobQuestion.set(id, first === -1 ? rows.length - 1 : first);
+  }
+  const at = Math.min(Math.max(jobQuestion.get(id), 0), rows.length - 1);
+  jobQuestion.set(id, at);
+
+  rows.forEach((row, i) => {
+    row.hidden = !all && i !== at;
+  });
+  flow.querySelectorAll('[data-panel="2"] .check-group').forEach((g) => {
+    g.hidden = !all;
+  });
+
+  const answered = rows.filter(isAnswered).length;
+  const group = groupOf(rows[at]);
+  // The running count of faults, which the answer buttons' own listeners
+  // keep current on the checklist's summary line. Read from there rather
+  // than counted again, so the two can never disagree. One question at a
+  // time hides that line and the note under it — they pushed the question
+  // off the first screen — and the count is shown here instead.
+  const tally = flow.querySelector("[data-check-tally]")?.textContent.trim() || "";
+  flow.classList.toggle("is-single", !all);
+  nav.hidden = false;
+  nav.innerHTML = `
+    <div class="qnav__row">
+      <span class="caption-3">${
+        all ? `${rows.length} questions` : `Question ${at + 1} of ${rows.length}`
+      }</span>
+      <button type="button" class="qnav__toggle button-xsm" data-q-all>
+        ${all ? "One at a time" : "Show all"}
+      </button>
+    </div>
+    <div class="qnav__track" role="progressbar" aria-valuemin="0"
+         aria-valuemax="${rows.length}" aria-valuenow="${answered}">
+      <div class="qnav__fill" style="transform: scaleX(${answered / rows.length})"></div>
+    </div>
+    <div class="qnav__row">
+      <span class="caption-5">${escapeHtml(tally || `${answered} of ${rows.length} answered`)}</span>
+      ${!all && group ? `<span class="qnav__group caption-3">${escapeHtml(group)}</span>` : ""}
+    </div>`;
+
+  foot.hidden = all;
+  const last = at === rows.length - 1;
+  foot.innerHTML = `
+    <button type="button" class="btn-flow" data-q-prev ${at === 0 ? "disabled" : ""}>
+      ${ICONS.back} Previous
+    </button>
+    <button type="button" class="btn-flow${last ? " btn-flow--primary" : ""}" data-q-next>
+      ${last ? "Go to confirm" : isAnswered(rows[at]) ? "Next question" : "Skip question"} ${ICONS.next}
+    </button>`;
+}
+
+// Puts the open pickup on its current step: which panel shows, which steps
+// read as done, and what the bar at the bottom offers.
+function applyJobView(host) {
+  const flow = host.querySelector("[data-flow]");
+  if (!flow) return;
+  const step = jobStep.get(flow.dataset.flow) || 0;
+
+  flow.querySelectorAll("[data-panel]").forEach((panel) => {
+    panel.hidden = Number(panel.dataset.panel) !== step;
+  });
+  flow.querySelectorAll("[data-job-step]").forEach((btn) => {
+    const i = Number(btn.dataset.jobStep);
+    btn.classList.toggle("is-current", i === step);
+    btn.classList.toggle("is-done", i < step);
+    if (i === step) btn.setAttribute("aria-current", "step");
+    else btn.removeAttribute("aria-current");
+    const dot = btn.querySelector(".stepper__dot");
+    if (dot) dot.innerHTML = i < step ? ICONS.check : String(i + 1);
+  });
+
+  const prev = flow.querySelector("[data-job-prev]");
+  const next = flow.querySelector("[data-job-next]");
+  if (prev) prev.disabled = step === 0;
+  if (next) {
+    // The last step ends in Confirm, which is its own button beside the
+    // amount. A second "next" under it would be a button that goes nowhere.
+    next.hidden = step === JOB_STEPS.length - 1;
+    if (!next.hidden) next.innerHTML = `Next: ${JOB_STEPS[step + 1].label} ${ICONS.next}`;
+  }
+
+  applyQuestionView(flow);
+}
+
+function setJobStep(host, step) {
+  const flow = host.querySelector("[data-flow]");
+  if (!flow) return;
+  jobStep.set(flow.dataset.flow, Math.min(Math.max(step, 0), JOB_STEPS.length - 1));
+  applyJobView(host);
+  // A new step starts at its top, not wherever the last one was scrolled to.
+  flow.scrollIntoView({ block: "start" });
+}
+
+// One listener on the list for everything the new layout adds. Delegated
+// because the list's markup is replaced on every snapshot; the listeners the
+// old card set per button (answers, the amount, the stage) are still set per
+// render by `wireChecks`, `wireInspection` and the loop below.
+function wireJobFlow(host) {
+  if (host.dataset.flowWired) return;
+  host.dataset.flowWired = "1";
+
+  host.addEventListener("click", (e) => {
+    const hit = (sel) => e.target.closest(sel);
+    const flow = host.querySelector("[data-flow]");
+    const id = flow?.dataset.flow;
+
+    const open = hit("[data-job-open]");
+    if (open) {
+      jobOpenId = open.dataset.jobOpen;
+      renderInspectorJobs(inspectorOrders);
+      window.scrollTo({ top: 0 });
+      return;
+    }
+    if (hit("[data-job-close]")) {
+      jobOpenId = null;
+      renderInspectorJobs(inspectorOrders);
+      window.scrollTo({ top: 0 });
+      return;
+    }
+    if (!flow) return;
+
+    const stepBtn = hit("[data-job-step]");
+    if (stepBtn) return setJobStep(host, Number(stepBtn.dataset.jobStep));
+    if (hit("[data-job-prev]")) return setJobStep(host, (jobStep.get(id) || 0) - 1);
+    if (hit("[data-job-next]")) return setJobStep(host, (jobStep.get(id) || 0) + 1);
+
+    if (hit("[data-q-all]")) {
+      if (jobShowAll.has(id)) jobShowAll.delete(id);
+      else jobShowAll.add(id);
+      return applyQuestionView(flow);
+    }
+    if (hit("[data-q-prev]")) {
+      jobQuestion.set(id, (jobQuestion.get(id) || 0) - 1);
+      return applyQuestionView(flow);
+    }
+    if (hit("[data-q-next]")) {
+      const rows = questionRows(flow);
+      const at = jobQuestion.get(id) || 0;
+      if (at >= rows.length - 1) return setJobStep(host, 3);
+      jobQuestion.set(id, at + 1);
+      return applyQuestionView(flow);
+    }
+
+    // An answer. The button's own listener has already recorded it by the
+    // time the click reaches here, so this only moves the view on: a beat
+    // later, so the agent sees their answer land before the next question
+    // replaces it.
+    const answer = hit("[data-ck-pick], [data-check-set]");
+    if (answer) {
+      const row = answer.closest("[data-ck-row], [data-check-row]");
+      applyQuestionView(flow);
+      if (jobShowAll.has(id) || !row || !isAnswered(row)) return;
+      const rows = questionRows(flow);
+      const at = rows.indexOf(row);
+      if (at === -1 || at >= rows.length - 1) return;
+      setTimeout(() => {
+        // Still the same question, and still answered: a second tap that
+        // cleared it, or a tap on Previous, must not be overridden.
+        if (jobQuestion.get(id) !== at || !isAnswered(row)) return;
+        jobQuestion.set(id, at + 1);
+        applyQuestionView(flow);
+      }, 320);
+    }
+  });
+}
+
 function renderInspectorJobs(orders) {
   const host = el("inspector-list");
   if (!host) return;
+  wireJobFlow(host);
+
+  // An open pickup that is no longer in the list was reassigned or removed;
+  // fall back to the list rather than show a card for nothing.
+  const open = jobOpenId ? orders.find((o) => o.id === jobOpenId) : null;
+  if (!open) jobOpenId = null;
+  el("tab-inspector")?.classList.toggle("is-flow", !!open);
+
   if (orders.length === 0) {
     // Says it is working, not broken. "Nothing here" on a blank screen reads
     // as a failure to someone waiting for work.
@@ -4635,41 +5140,24 @@ function renderInspectorJobs(orders) {
   // Soonest-placed first: the oldest job is the one keeping someone waiting.
   orders.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
 
-  host.innerHTML = orders
-    .map(
-      (o) => `
-      <div class="job-card">
-        <div class="job-card__head">
-          <span class="mono">${escapeHtml(o.reference || o.id.slice(0, 8))}</span>
-          <span class="badge badge--${o.status === "paid" ? "success" : "warning"}">
-            ${escapeHtml(ORDER_STAGES.find((s) => s.value === o.status)?.label || o.status || "placed")}
-          </span>
-        </div>
-        <div class="cell-title">${escapeHtml(o.modelName || "Device")}</div>
-        <div class="cell-sub">${escapeHtml([o.brand, o.storage].filter(Boolean).join(" · "))}</div>
-        <div class="job-card__payout">${money(o.finalPayout)}</div>
-        ${briefingBlock(o)}
-        ${pickupBlock(o)}
-        ${conditionBlock(o)}
-        ${declaredBlock(o)}
-        ${checkupBlock(o)}
-        ${checksBlock(o)}
-        ${inspectionBlock(o)}
-        <div class="job-card__actions">
-          <select class="status-select" data-job-id="${escapeHtml(o.id)}">
-            ${ORDER_STAGES.map(
-              (s) => `<option value="${s.value}" ${s.value === (o.status || "placed") ? "selected" : ""}>${s.label}</option>`
-            ).join("")}
-          </select>
-          ${mapLink(o.addressLatitude, o.addressLongitude)}
-          ${callLink(o.customerPhone)}
-        </div>
-      </div>`
-    )
-    .join("");
+  host.innerHTML = open ? jobFlow(open) : orders.map(jobListCard).join("");
+
+  if (open) {
+    // Every section starts open. They were collapsed to keep one long card
+    // short; a step that shows nothing but headings to tap defeats the step.
+    host.querySelectorAll("details.job-detail").forEach((d) => {
+      d.open = true;
+    });
+    // The findings total belongs beside the amount it suggests. Moved, not
+    // re-rendered, so `wireChecks` still finds it by its data attribute.
+    const suggest = host.querySelector("[data-ck-suggest]");
+    const slot = host.querySelector("[data-pay-slot]");
+    if (suggest && slot) slot.appendChild(suggest);
+  }
 
   wireInspection(host, orders);
   wireChecks(host, orders);
+  applyJobView(host);
 
   host.querySelectorAll("[data-job-id]").forEach((sel) => {
     sel.addEventListener("change", async () => {

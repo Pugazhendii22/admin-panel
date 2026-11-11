@@ -14,6 +14,9 @@
   <meta name="apple-mobile-web-app-title" content="FM Admin" />
   <meta name="mobile-web-app-capable" content="yes" />
 
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -470,20 +473,26 @@
   </section>
 
   <section id="tab-inspector" class="tab-panel" hidden>
-    <div class="card">
-      <h2>Your pickups</h2>
-      <p class="cell-sub">Oldest first. Change the stage as you go.</p>
+    <div class="pickups">
+      <div class="pickups__head">
+        <h2 class="heading-5">Your pickups</h2>
+        <p class="caption-2">Oldest first. Open one to work through it step by step.</p>
+      </div>
       <div id="inspector-list"></div>
     </div>
   </section>
 
   <!-- ===================== Order details ===================== -->
-  <dialog id="order-modal" class="modal">
-    <div class="modal-card">
-      <h3>Order details</h3>
-      <div id="order-detail-list" class="detail-list"></div>
-      <div class="modal-actions">
-        <button type="button" id="order-modal-close" class="btn btn--ghost">Close</button>
+  <dialog id="order-modal" class="modal modal--sheet">
+    <div class="modal-card od">
+      <div class="od__bar">
+        <h3 class="heading-6">Order details</h3>
+        <button type="button" id="order-modal-close" class="od__close button-sm">Close</button>
+      </div>
+      <div id="order-detail-list" class="detail-list od__body"></div>
+      <div class="od__foot">
+        <button type="button" id="order-modal-prev" class="btn-flow">Back</button>
+        <button type="button" id="order-modal-next" class="btn-flow btn-flow--primary">Next</button>
       </div>
     </div>
   </dialog>
