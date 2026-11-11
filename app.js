@@ -1674,10 +1674,21 @@ const RULE_DOCS = [
     used: "Step 4 of the sell wizard.",
   },
   {
+    id: "warranty_status",
+    title: "Warranty left",
+    kind: "options",
+    used:
+      "How much manufacturer warranty the phone has left. Add whatever " +
+      "bands suit — “1-2 months”, “2-3 months”, “Out of warranty” — and " +
+      "the wizard shows them in this order. The step only appears once " +
+      "there is at least one band here, so leaving this empty keeps the " +
+      "sell flow at five steps.",
+  },
+  {
     id: "lock_status",
     title: "Lock status",
     kind: "options",
-    used: "Step 5 of the sell wizard, beside the payout.",
+    used: "The last step of the sell wizard, beside the payout.",
   },
   {
     id: "scrap_values",
