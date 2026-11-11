@@ -2621,11 +2621,35 @@ window.addEventListener("appinstalled", () => {
 
 const CHECKLIST_DOC = "default";
 
+/// An answer is `{ label, percent }`.
+///
+/// It was a bare string first, and a checklist saved then still is one, so
+/// both are read. Normalised on the way in rather than at every use, so the
+/// rest of this file only ever sees the object.
+function optLabel(o) {
+  return typeof o === "string" ? o : String(o?.label ?? "");
+}
+
+function optPercent(o) {
+  if (typeof o === "string") return 0;
+  const n = Number(o?.percent);
+  return Number.isFinite(n) && n > 0 ? Math.min(100, Math.round(n)) : 0;
+}
+
+function normaliseOption(o) {
+  return { label: optLabel(o), percent: optPercent(o) };
+}
+
 let checklistQuestions = null;
 let checklistDirty = false;
 let checklistLoading = false;
 
 /// A starting point, taken from what the shop already grades by hand.
+///
+/// Every percentage starts at zero. The wording is a reasonable guess at what
+/// a shop asks; what each answer is worth is not something anybody but the
+/// owner can know, and seeding a plausible-looking number would be a price
+/// nobody set.
 ///
 /// Offered rather than written on first load: an empty checklist is a
 /// deliberate state (the agent keeps the old pass/fail list until there is
@@ -2637,11 +2661,11 @@ const STANDARD_CHECKLIST = [
     question: "Are there any cracks on the screen?",
     hint: "Check the glass against the light, edge to edge",
     options: [
-      "No cracks",
-      "Hairline crack under 1cm",
-      "Crack under 3cm, touch working",
-      "Multiple cracks or touch not working",
-    ],
+      { label: "No cracks", percent: 0 },
+      { label: "Hairline crack under 1cm", percent: 0 },
+      { label: "Crack under 3cm, touch working", percent: 0 },
+      { label: "Multiple cracks or touch not working", percent: 0 },
+    ]
   },
   {
     id: "screen_spots",
@@ -2649,11 +2673,11 @@ const STANDARD_CHECKLIST = [
     question: "Are there any visible spots?",
     hint: "Dead pixels / spots on screen",
     options: [
-      "No spots",
-      "Upto 3 white spots of 2mm / 1 white spot of 3mm",
-      "More than 3 white spots / white patches",
-      "Coloured spots or patches (black, yellow, blue, green, red)",
-    ],
+      { label: "No spots", percent: 0 },
+      { label: "Upto 3 white spots of 2mm / 1 white spot of 3mm", percent: 0 },
+      { label: "More than 3 white spots / white patches", percent: 0 },
+      { label: "Coloured spots or patches (black, yellow, blue, green, red)", percent: 0 },
+    ]
   },
   {
     id: "screen_lines",
@@ -2668,11 +2692,11 @@ const STANDARD_CHECKLIST = [
     question: "Is the screen discoloured?",
     hint: "Select the screen discolouration",
     options: [
-      "No discolouration",
-      "Light yellow/blue/pink/green along the edges",
-      "Dark yellow/blue/pink/green along the edges",
-      "Screen fading — colour or background imprint on the full screen",
-    ],
+      { label: "No discolouration", percent: 0 },
+      { label: "Light yellow/blue/pink/green along the edges", percent: 0 },
+      { label: "Dark yellow/blue/pink/green along the edges", percent: 0 },
+      { label: "Screen fading — colour or background imprint on the full screen", percent: 0 },
+    ]
   },
   {
     id: "body_scratches",
@@ -2680,13 +2704,13 @@ const STANDARD_CHECKLIST = [
     question: "Are there any scratches on the phone body?",
     hint: "Side, back, top and bottom panels",
     options: [
-      "No scratch",
-      "Upto 5 scratches of less than 1cm",
-      "Upto 15 scratches of 1cm / upto 5 scratches of 3cm",
-      "More than 15 scratches of 1cm / more than 5 of 3cm, or cover mark",
-      "Minor paint peel-off or bubble",
-      "Major paint peel-off or bubble",
-    ],
+      { label: "No scratch", percent: 0 },
+      { label: "Upto 5 scratches of less than 1cm", percent: 0 },
+      { label: "Upto 15 scratches of 1cm / upto 5 scratches of 3cm", percent: 0 },
+      { label: "More than 15 scratches of 1cm / more than 5 of 3cm, or cover mark", percent: 0 },
+      { label: "Minor paint peel-off or bubble", percent: 0 },
+      { label: "Major paint peel-off or bubble", percent: 0 },
+    ]
   },
   {
     id: "body_dents",
@@ -2694,10 +2718,10 @@ const STANDARD_CHECKLIST = [
     question: "Are there any dents on the phone body?",
     hint: "Anything you can feel with a thumb",
     options: [
-      "No dents",
-      "1-2 dents",
-      "More than 2 dents, or a minor crack under 1cm on the body",
-    ],
+      { label: "No dents", percent: 0 },
+      { label: "1-2 dents", percent: 0 },
+      { label: "More than 2 dents, or a minor crack under 1cm on the body", percent: 0 },
+    ]
   },
   {
     id: "body_panel",
@@ -2705,12 +2729,12 @@ const STANDARD_CHECKLIST = [
     question: "What condition is the panel in?",
     hint: "Phone side / back panel condition",
     options: [
-      "No defect",
-      "Loose panel or visible pasting",
-      "Missing panel",
-      "Cracked and broken panel",
-      "Glass back panel damaged",
-    ],
+      { label: "No defect", percent: 0 },
+      { label: "Loose panel or visible pasting", percent: 0 },
+      { label: "Missing panel", percent: 0 },
+      { label: "Cracked and broken panel", percent: 0 },
+      { label: "Glass back panel damaged", percent: 0 },
+    ]
   },
   {
     id: "body_bent",
@@ -2728,8 +2752,15 @@ function checklistCard(q, i, total) {
       <div class="ck-opt">
         <span class="ck-opt__n${j === 0 ? " ck-opt__n--clean" : ""}">${j + 1}</span>
         <input type="text" class="ck-opt__text" data-q="${i}" data-opt="${j}"
-               value="${escapeHtml(String(opt || ""))}"
+               value="${escapeHtml(optLabel(opt))}"
                placeholder="${j === 0 ? "The clean answer — e.g. No scratch" : "What the agent found"}" />
+        <span class="ck-opt__pct">
+          <input type="number" min="0" max="100" step="1" inputmode="numeric"
+                 class="ck-opt__pctinput" data-q="${i}" data-pct="${j}"
+                 value="${optPercent(opt)}"
+                 ${j === 0 ? 'disabled title="The clean answer takes nothing off"' : 'title="Taken off the quoted payout"'} />
+          <span>%</span>
+        </span>
         <button class="btn btn--tiny" type="button" data-ck="opt-up" data-q="${i}" data-opt="${j}"
                 ${j === 0 ? "disabled" : ""} title="Move up">↑</button>
         <button class="btn btn--tiny" type="button" data-ck="opt-down" data-q="${i}" data-opt="${j}"
@@ -2831,7 +2862,7 @@ async function loadChecklist() {
           group: String(q?.group || ""),
           question: String(q?.question || ""),
           hint: String(q?.hint || ""),
-          options: Array.isArray(q?.options) ? q.options.map((o) => String(o)) : [],
+          options: Array.isArray(q?.options) ? q.options.map(normaliseOption) : [],
         }))
       : [];
     checklistDirty = false;
@@ -2879,7 +2910,10 @@ el("checklist-add")?.addEventListener("click", () => {
     group: checklistQuestions.at(-1)?.group || "",
     question: "",
     hint: "",
-    options: ["", ""],
+    options: [
+      { label: "", percent: 0 },
+      { label: "", percent: 0 },
+    ],
   });
   markChecklistDirty();
   renderChecklist();
@@ -2893,7 +2927,7 @@ el("checklist-seed")?.addEventListener("click", () => {
   let added = 0;
   for (const q of STANDARD_CHECKLIST) {
     if (have.has(q.id)) continue;
-    checklistQuestions.push({ ...q, options: [...q.options] });
+    checklistQuestions.push({ ...q, options: q.options.map(normaliseOption) });
     added++;
   }
   if (added === 0) {
@@ -2920,7 +2954,12 @@ el("checklist-list")?.addEventListener("input", (e) => {
       q.id = checklistId(input.value, taken);
     }
   } else if (input.dataset.opt !== undefined) {
-    q.options[Number(input.dataset.opt)] = input.value;
+    const o = q.options[Number(input.dataset.opt)];
+    o.label = input.value;
+  } else if (input.dataset.pct !== undefined) {
+    const n = Math.round(Number(input.value));
+    q.options[Number(input.dataset.pct)].percent =
+      Number.isFinite(n) && n > 0 ? Math.min(100, n) : 0;
   }
   markChecklistDirty();
 });
@@ -2940,7 +2979,7 @@ el("checklist-list")?.addEventListener("click", (e) => {
 
   switch (btn.dataset.ck) {
     case "opt-add":
-      q.options.push("");
+      q.options.push({ label: "", percent: 0 });
       break;
     case "opt-del":
       q.options.splice(oi, 1);
@@ -2976,7 +3015,10 @@ el("checklist-save")?.addEventListener("click", async () => {
     group: String(q.group || "").trim(),
     question: String(q.question || "").trim(),
     hint: String(q.hint || "").trim(),
-    options: (q.options || []).map((o) => String(o).trim()).filter(Boolean),
+    options: (q.options || [])
+      .map((o) => ({ label: optLabel(o).trim(), percent: optPercent(o) }))
+      .filter((o) => o.label)
+      .map((o, j) => (j === 0 ? { ...o, percent: 0 } : o)),
   }));
 
   const unnamed = cleaned.filter((q) => !q.question || !q.id);
@@ -4022,7 +4064,50 @@ function activeChecklist() {
 /// nothing the ordering does not.
 function isFinding(question, answer) {
   if (!answer) return false;
-  return answer !== (question.options || [])[0];
+  return answer !== optLabel((question.options || [])[0]);
+}
+
+/// What the picked answers come to, as a percentage of the quoted payout.
+///
+/// Off the quote, not off `base_price`: the agent is adjusting the figure
+/// the seller accepted, and the sell wizard has already taken the seller's
+/// own declared condition off the base. Measuring against the base here
+/// would deduct twice for the same phone.
+function findingsTotal(questions, answers) {
+  let percent = 0;
+  const lines = [];
+  for (const q of questions) {
+    const picked = answers[q.id];
+    if (!isFinding(q, picked)) continue;
+    const opt = (q.options || []).find((o) => optLabel(o) === picked);
+    const pct = optPercent(opt);
+    lines.push({ question: q.question, answer: picked, percent: pct });
+    percent += pct;
+  }
+  return { percent: Math.min(100, percent), lines };
+}
+
+/// The amount those findings suggest, or null when they suggest nothing.
+function suggestedAmount(order, questions, answers) {
+  const quoted = Number(order.finalPayout) || 0;
+  const { percent } = findingsTotal(questions, answers);
+  if (!quoted || percent <= 0) return null;
+  return { percent, amount: Math.max(0, Math.round(quoted * (1 - percent / 100))) };
+}
+
+function suggestionHtml(order, questions, answers) {
+  const s = suggestedAmount(order, questions, answers);
+  if (!s) return "";
+  const quoted = Number(order.finalPayout) || 0;
+  return `
+    <div class="ck-suggest">
+      <span>
+        Found <strong>${s.percent}%</strong> off the quoted ${money(quoted)} —
+        <strong>${money(s.amount)}</strong>
+      </span>
+      <button type="button" class="btn btn--small btn--ghost"
+              data-ck-use="${escapeHtml(order.id)}|${s.amount}">Use this</button>
+    </div>`;
 }
 
 function gradedTally(questions, answers) {
@@ -4052,15 +4137,18 @@ function gradedChecksBlock(order, questions) {
       }
 
       const opts = (q.options || [])
-        .map(
-          (opt, j) => `
+        .map((opt, j) => {
+          const label = optLabel(opt);
+          const pct = optPercent(opt);
+          return `
           <button type="button"
-                  class="ck-pick${chosen === opt ? " is-on" : ""}${j === 0 ? " ck-pick--clean" : ""}"
-                  aria-pressed="${chosen === opt}"
+                  class="ck-pick${chosen === label ? " is-on" : ""}${j === 0 ? " ck-pick--clean" : ""}"
+                  aria-pressed="${chosen === label}"
                   data-ck-pick="${escapeHtml(order.id)}|${escapeHtml(q.id)}|${escapeHtml(String(j))}">
-            ${escapeHtml(String(opt))}
-          </button>`
-        )
+            ${escapeHtml(label)}
+            ${pct > 0 ? `<span class="ck-pick__pct">\u2212${pct}%</span>` : ""}
+          </button>`;
+        })
         .join("");
 
       return `
@@ -4086,6 +4174,7 @@ function gradedChecksBlock(order, questions) {
         confirm, as the record of what the phone was.
       </div>
       ${rows}
+      <div data-ck-suggest="${escapeHtml(order.id)}">${suggestionHtml(order, questions, answers)}</div>
     </details>`;
 }
 
@@ -4226,9 +4315,9 @@ function faultHint(orderId) {
   const questions = activeChecklist();
 
   const names = questions
-    ? questions
-        .filter((q) => isFinding(q, answers[q.id]))
-        .map((q) => `${q.question} — ${answers[q.id]}`)
+    ? findingsTotal(questions, answers).lines.map(
+        (l) => `${l.question} — ${l.answer}${l.percent ? ` (${l.percent}%)` : ""}`
+      )
     : CONDITION_CHECKS.filter((c) => answers[c.id] === "fail").map((c) => c.label);
 
   if (names.length === 0) return "";
@@ -4249,7 +4338,7 @@ function answeredChecks(orderId) {
     // an agent's browser is the only place a stray value could come from.
     for (const q of questions) {
       const a = answers[q.id];
-      if (a && (q.options || []).includes(a)) out[q.id] = a;
+      if (a && (q.options || []).some((o) => optLabel(o) === a)) out[q.id] = a;
     }
     return out;
   }
@@ -4262,8 +4351,32 @@ function answeredChecks(orderId) {
   return out;
 }
 
-function wireChecks(host) {
+function wireChecks(host, orders = []) {
   const questions = activeChecklist();
+
+  // Drops the suggested figure into the amount box. A button rather than an
+  // automatic fill: the agent is the one who has the phone in their hand,
+  // and a number that changes itself under them is how a figure gets sent
+  // that nobody chose. The reason box is prefilled from the findings for
+  // the same reason the amount is not — it still has to be read.
+  host.querySelectorAll("[data-ck-use]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const parts = String(btn.dataset.ckUse).split("|");
+      const amount = Number(parts.pop());
+      const orderId = parts.join("|");
+
+      const input = host.querySelector(`[data-amount="${CSS.escape(orderId)}"]`);
+      if (!input) return;
+      input.value = String(amount);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+
+      const reason = host.querySelector(`[data-reason="${CSS.escape(orderId)}"]`);
+      if (reason && !reason.value.trim()) {
+        const found = findingsTotal(questions || [], answersFor(orderId)).lines;
+        reason.value = found.map((l) => `${l.answer} (${l.percent}%)`).join("; ");
+      }
+    });
+  });
 
   host.querySelectorAll("[data-ck-pick]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -4301,6 +4414,30 @@ function wireChecks(host) {
       }
       const faults = host.querySelector(`[data-check-faults="${CSS.escape(orderId)}"]`);
       if (faults) faults.innerHTML = faultHint(orderId);
+
+      const slot = host.querySelector(`[data-ck-suggest="${CSS.escape(orderId)}"]`);
+      const order = orders.find((o) => o.id === orderId);
+      if (slot && order) {
+        slot.innerHTML = suggestionHtml(order, questions, answers);
+        // Re-rendered markup carries no listeners, so the new button is
+        // wired where it is created rather than relying on the pass above.
+        const use = slot.querySelector("[data-ck-use]");
+        if (use) {
+          use.addEventListener("click", () => {
+            const amount = Number(String(use.dataset.ckUse).split("|").pop());
+            const input = host.querySelector(`[data-amount="${CSS.escape(orderId)}"]`);
+            if (!input) return;
+            input.value = String(amount);
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            const reason = host.querySelector(`[data-reason="${CSS.escape(orderId)}"]`);
+            if (reason && !reason.value.trim()) {
+              reason.value = findingsTotal(questions, answers)
+                .lines.map((l) => `${l.answer} (${l.percent}%)`)
+                .join("; ");
+            }
+          });
+        }
+      }
     });
   });
 
@@ -4524,7 +4661,7 @@ function renderInspectorJobs(orders) {
     .join("");
 
   wireInspection(host, orders);
-  wireChecks(host);
+  wireChecks(host, orders);
 
   host.querySelectorAll("[data-job-id]").forEach((sel) => {
     sel.addEventListener("change", async () => {

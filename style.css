@@ -1392,3 +1392,49 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
   border-color: var(--success);
   color: var(--success);
 }
+
+/* The percentage beside an answer, in the editor. Narrow and to the right of
+   the wording, so a column of them can be read down without the labels
+   getting in the way. */
+.ck-opt__pct {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+.ck-opt__pctinput {
+  width: 52px;
+  padding: 7px 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  text-align: right;
+}
+.ck-opt__pctinput:disabled {
+  background: var(--surface-2, #f1f3f5);
+  color: var(--text-tertiary);
+}
+
+/* On the job card, the cost rides inside the answer button. */
+.ck-pick__pct {
+  margin-left: 6px;
+  font-weight: 700;
+  opacity: 0.8;
+}
+
+/* What the findings come to, under the questions and above the amount box. */
+.ck-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--warning-soft, #fff8e1);
+  font-size: 13px;
+}
