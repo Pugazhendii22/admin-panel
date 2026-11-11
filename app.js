@@ -2841,7 +2841,14 @@ function renderChecklist() {
   }
 
   const save = el("checklist-save");
-  if (save) save.disabled = !checklistDirty;
+  if (save) {
+    save.disabled = !checklistDirty;
+    // Restored here, not in the save handler. This button lives in the
+    // toolbar and survives a render, where the pricing cards' Save buttons
+    // are rebuilt with their card and come back labelled correctly for
+    // free — which is why that editor never needed this and this one did.
+    save.textContent = "Save";
+  }
 }
 
 function markChecklistDirty() {
@@ -3051,6 +3058,7 @@ el("checklist-save")?.addEventListener("click", async () => {
     );
     checklistQuestions = cleaned;
     checklistDirty = false;
+    btn.textContent = previous;
     toast("Checklist saved — agents see it on their next job.", "success");
     renderChecklist();
   } catch (err) {
