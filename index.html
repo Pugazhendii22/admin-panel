@@ -73,6 +73,10 @@
         <span class="tab-label-long">Pricing rules</span>
         <span class="tab-label-short">Pricing</span>
       </button>
+      <button class="tab-btn" data-tab="tab-checklist" data-admin-only="1">
+        <span class="tab-label-long">Inspection checklist</span>
+        <span class="tab-label-short">Checklist</span>
+      </button>
       <button class="tab-btn" data-tab="tab-staff" data-admin-only="1">Staff</button>
       <button class="tab-btn" data-tab="tab-listings" data-admin-only="1">
         <span class="tab-label-long">Second-hand listings</span>
@@ -438,6 +442,33 @@
   </section>
 
   <!-- ===================== Inspector's own screen ===================== -->
+  <section id="tab-checklist" class="tab-panel" hidden data-admin-only="1">
+    <div class="card">
+      <h2>Inspection checklist</h2>
+      <p class="cell-sub">
+        What the agent is asked about the phone at the door. Each question is
+        a list of answers, and the agent picks one.
+      </p>
+      <p class="cell-sub">
+        <strong>The first answer on every question is the clean one</strong> —
+        "No scratch", "No defect". Anything below it counts as something found
+        and is totalled on the job card. None of this changes the payout: the
+        agent still confirms the amount themselves, with a reason.
+      </p>
+      <div class="pricing-toolbar">
+        <button id="checklist-refresh" class="btn btn--ghost" type="button">↻ Reload</button>
+        <button id="checklist-seed" class="btn btn--ghost btn--small" type="button"
+                title="Fill in a standard checklist, for you to edit">
+          Fill in the standard checklist
+        </button>
+        <button id="checklist-add" class="btn btn--primary btn--small" type="button">+ Question</button>
+        <button id="checklist-save" class="btn btn--primary btn--small" type="button" disabled>Save</button>
+      </div>
+      <datalist id="ck-groups"></datalist>
+      <div id="checklist-list"></div>
+    </div>
+  </section>
+
   <section id="tab-inspector" class="tab-panel" hidden>
     <div class="card">
       <h2>Your pickups</h2>

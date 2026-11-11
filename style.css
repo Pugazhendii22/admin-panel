@@ -1281,3 +1281,114 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
   flex-basis: 100%;
   margin: 0;
 }
+
+/* ===================== Inspection checklist =============================
+   Two surfaces share these: the admin editor, where the questions and their
+   answers are written, and the agent's job card, where one answer per
+   question is picked. */
+
+.pricing-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 12px 0;
+}
+
+/* --- the editor --- */
+
+.ck-card { margin-bottom: 12px; }
+
+.ck-head__fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex: 1;
+}
+
+.ck-opts { margin: 8px 0; }
+
+.ck-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+/* The number carries the rule: answer 1 is the clean one. Saying it in the
+   margin of every row beats a sentence at the top that nobody rereads. */
+.ck-opt__n {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--surface-2, #f1f3f5);
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 700;
+}
+.ck-opt__n--clean {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.ck-opt__text {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+}
+
+/* --- the job card --- */
+
+.ck-row {
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.ck-row--fault .ck-row__q { color: var(--error); }
+
+.ck-row__q {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.ck-row__q .cell-sub { display: block; font-weight: 400; }
+
+.ck-row__opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Wraps rather than scrolls: these answers are whole sentences, and an agent
+   holding a phone in one hand should not have to swipe a row to find the one
+   that matches. */
+.ck-pick {
+  padding: 7px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.ck-pick:hover:not(.is-on) { border-color: var(--text-tertiary); }
+.ck-pick.is-on {
+  background: var(--error-soft);
+  border-color: var(--error);
+  color: var(--error);
+  font-weight: 600;
+}
+/* The clean answer selected is good news, not a finding. */
+.ck-pick--clean.is-on {
+  background: var(--success-soft);
+  border-color: var(--success);
+  color: var(--success);
+}

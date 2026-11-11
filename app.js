@@ -358,6 +358,12 @@ onAuthStateChanged(auth, async (user) => {
       .forEach((n) => n.remove());
     const panel = el("tab-inspector");
     if (panel) panel.hidden = false;
+    // Before the jobs, so the first render already has the questions. The
+    // admin-only DOM it would otherwise draw into is gone by now, and every
+    // write in there is null-guarded, so this only fills the array.
+    loadChecklist().then(() => {
+      if (inspectorOrders) renderInspectorJobs(inspectorOrders);
+    });
     startInspectorListener(user.uid);
     startWebPush(user.uid, "inspectors");
     return;
@@ -437,6 +443,9 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
     // Read when it is first looked at, not on sign-in: these are eight reads
     // the catalog screen has no use for.
     if (btn.dataset.tab === "tab-pricing" && !pricingDocs) loadPricingRules();
+    if (btn.dataset.tab === "tab-checklist" && !checklistQuestions) {
+      loadChecklist();
+    }
   });
 });
 
@@ -2593,6 +2602,423 @@ window.addEventListener("appinstalled", () => {
 
 
 // ---------------------------------------------------------------------------
+// Inspection checklist — what the agent is asked at the door
+//
+// Lives in `inspection_checklist/default`, not in `deduction_rules`. That
+// collection is world-readable, because the mobile app browses the catalogue
+// before anyone signs in, and these questions have no business being part of
+// the shop window. It also moves no money: the answers are a record of what
+// the agent found, and they still type the confirmed amount themselves with
+// a reason. Keeping the two apart is what stops a future reader treating a
+// checklist answer as a deduction.
+//
+// On every question the FIRST answer is the clean one — "No scratch", "No
+// defect". The job card totals everything below it as something found. That
+// convention is why the editor numbers the rows and labels row one, rather
+// than carrying a per-answer "is this a fault" flag that nobody would keep
+// correct.
+// ---------------------------------------------------------------------------
+
+const CHECKLIST_DOC = "default";
+
+let checklistQuestions = null;
+let checklistDirty = false;
+let checklistLoading = false;
+
+/// A starting point, taken from what the shop already grades by hand.
+///
+/// Offered rather than written on first load: an empty checklist is a
+/// deliberate state (the agent keeps the old pass/fail list until there is
+/// something here), and silently seeding would take that choice away.
+const STANDARD_CHECKLIST = [
+  {
+    id: "screen_cracks",
+    group: "Screen condition",
+    question: "Are there any cracks on the screen?",
+    hint: "Check the glass against the light, edge to edge",
+    options: [
+      "No cracks",
+      "Hairline crack under 1cm",
+      "Crack under 3cm, touch working",
+      "Multiple cracks or touch not working",
+    ],
+  },
+  {
+    id: "screen_spots",
+    group: "Screen condition",
+    question: "Are there any visible spots?",
+    hint: "Dead pixels / spots on screen",
+    options: [
+      "No spots",
+      "Upto 3 white spots of 2mm / 1 white spot of 3mm",
+      "More than 3 white spots / white patches",
+      "Coloured spots or patches (black, yellow, blue, green, red)",
+    ],
+  },
+  {
+    id: "screen_lines",
+    group: "Screen condition",
+    question: "Are there any visible lines?",
+    hint: "Visible lines on screen",
+    options: ["No lines on screen", "Lines on screen"],
+  },
+  {
+    id: "screen_discolour",
+    group: "Screen condition",
+    question: "Is the screen discoloured?",
+    hint: "Select the screen discolouration",
+    options: [
+      "No discolouration",
+      "Light yellow/blue/pink/green along the edges",
+      "Dark yellow/blue/pink/green along the edges",
+      "Screen fading — colour or background imprint on the full screen",
+    ],
+  },
+  {
+    id: "body_scratches",
+    group: "Device physical condition",
+    question: "Are there any scratches on the phone body?",
+    hint: "Side, back, top and bottom panels",
+    options: [
+      "No scratch",
+      "Upto 5 scratches of less than 1cm",
+      "Upto 15 scratches of 1cm / upto 5 scratches of 3cm",
+      "More than 15 scratches of 1cm / more than 5 of 3cm, or cover mark",
+      "Minor paint peel-off or bubble",
+      "Major paint peel-off or bubble",
+    ],
+  },
+  {
+    id: "body_dents",
+    group: "Device physical condition",
+    question: "Are there any dents on the phone body?",
+    hint: "Anything you can feel with a thumb",
+    options: [
+      "No dents",
+      "1-2 dents",
+      "More than 2 dents, or a minor crack under 1cm on the body",
+    ],
+  },
+  {
+    id: "body_panel",
+    group: "Device physical condition",
+    question: "What condition is the panel in?",
+    hint: "Phone side / back panel condition",
+    options: [
+      "No defect",
+      "Loose panel or visible pasting",
+      "Missing panel",
+      "Cracked and broken panel",
+      "Glass back panel damaged",
+    ],
+  },
+  {
+    id: "body_bent",
+    group: "Device physical condition",
+    question: "Is the phone bent?",
+    hint: "Sight down the long edge",
+    options: ["Not bent", "Slightly bent", "Visibly bent or twisted"],
+  },
+];
+
+function checklistCard(q, i, total) {
+  const rows = (q.options || [])
+    .map(
+      (opt, j) => `
+      <div class="ck-opt">
+        <span class="ck-opt__n${j === 0 ? " ck-opt__n--clean" : ""}">${j + 1}</span>
+        <input type="text" class="ck-opt__text" data-q="${i}" data-opt="${j}"
+               value="${escapeHtml(String(opt || ""))}"
+               placeholder="${j === 0 ? "The clean answer — e.g. No scratch" : "What the agent found"}" />
+        <button class="btn btn--tiny" type="button" data-ck="opt-up" data-q="${i}" data-opt="${j}"
+                ${j === 0 ? "disabled" : ""} title="Move up">↑</button>
+        <button class="btn btn--tiny" type="button" data-ck="opt-down" data-q="${i}" data-opt="${j}"
+                ${j === (q.options.length - 1) ? "disabled" : ""} title="Move down">↓</button>
+        <button class="btn btn--tiny btn--danger" type="button" data-ck="opt-del" data-q="${i}" data-opt="${j}"
+                title="Remove this answer">✕</button>
+      </div>`
+    )
+    .join("");
+
+  return `
+    <section class="card ck-card" data-ck-q="${i}">
+      <div class="rule-head">
+        <div class="ck-head__fields">
+          <label class="field field--tight field--grow">
+            <span>Question the agent is asked</span>
+            <input type="text" data-ck-field="question" data-q="${i}"
+                   value="${escapeHtml(String(q.question || ""))}"
+                   placeholder="e.g. Are there any dents on the phone body?" />
+          </label>
+          <label class="field field--tight field--grow">
+            <span>Smaller line underneath</span>
+            <input type="text" data-ck-field="hint" data-q="${i}"
+                   value="${escapeHtml(String(q.hint || ""))}"
+                   placeholder="Where to look" />
+          </label>
+          <label class="field field--tight">
+            <span>Section</span>
+            <input type="text" data-ck-field="group" data-q="${i}"
+                   list="ck-groups" value="${escapeHtml(String(q.group || ""))}"
+                   placeholder="e.g. Screen condition" />
+          </label>
+        </div>
+        <div class="rule-head__actions">
+          <button class="btn btn--tiny" type="button" data-ck="q-up" data-q="${i}"
+                  ${i === 0 ? "disabled" : ""} title="Move question up">↑</button>
+          <button class="btn btn--tiny" type="button" data-ck="q-down" data-q="${i}"
+                  ${i === total - 1 ? "disabled" : ""} title="Move question down">↓</button>
+          <button class="btn btn--tiny btn--danger" type="button" data-ck="q-del" data-q="${i}"
+                  title="Remove this question">✕</button>
+        </div>
+      </div>
+      <p class="cell-sub"><code>${escapeHtml(String(q.id || "(no id)"))}</code> ·
+        answer 1 is the clean one</p>
+      <div class="ck-opts">${rows || `<p class="empty">No answers yet.</p>`}</div>
+      <button class="btn btn--small btn--ghost" type="button" data-ck="opt-add" data-q="${i}">+ Answer</button>
+    </section>`;
+}
+
+function renderChecklist() {
+  const host = el("checklist-list");
+  if (!host) return;
+
+  if (!checklistQuestions) {
+    host.innerHTML = `<p class="empty">Loading…</p>`;
+    return;
+  }
+
+  if (checklistQuestions.length === 0) {
+    host.innerHTML = `<p class="empty">
+      No questions yet.
+      <span class="cell-sub">
+        Until there is at least one, the agent's job card keeps the old
+        pass/fail list — so an empty checklist breaks nothing.
+        “Fill in the standard checklist” gives you a set to edit.
+      </span>
+    </p>`;
+  } else {
+    host.innerHTML = checklistQuestions
+      .map((q, i) => checklistCard(q, i, checklistQuestions.length))
+      .join("");
+  }
+
+  const groups = el("ck-groups");
+  if (groups) {
+    const names = [...new Set(checklistQuestions.map((q) => String(q.group || "").trim()).filter(Boolean))];
+    groups.innerHTML = names.map((n) => `<option value="${escapeHtml(n)}"></option>`).join("");
+  }
+
+  const save = el("checklist-save");
+  if (save) save.disabled = !checklistDirty;
+}
+
+function markChecklistDirty() {
+  checklistDirty = true;
+  const save = el("checklist-save");
+  if (save) save.disabled = false;
+}
+
+async function loadChecklist() {
+  if (checklistLoading) return;
+  checklistLoading = true;
+  try {
+    const snap = await getDoc(doc(db, "inspection_checklist", CHECKLIST_DOC));
+    const raw = snap.exists() ? snap.data()?.questions : [];
+    checklistQuestions = Array.isArray(raw)
+      ? raw.map((q) => ({
+          id: String(q?.id || ""),
+          group: String(q?.group || ""),
+          question: String(q?.question || ""),
+          hint: String(q?.hint || ""),
+          options: Array.isArray(q?.options) ? q.options.map((o) => String(o)) : [],
+        }))
+      : [];
+    checklistDirty = false;
+    renderChecklist();
+  } catch (e) {
+    const host = el("checklist-list");
+    if (host) {
+      host.innerHTML = `<p class="empty empty--error">Could not load the checklist: ${escapeHtml(e.message)}</p>`;
+    }
+  } finally {
+    checklistLoading = false;
+  }
+}
+
+/// A stable key for a question, derived from its wording.
+///
+/// The answers are filed on the order against this id, so a question that is
+/// reworded keeps its history only if the id does not move with it. Generated
+/// once, when the question is created, and never recomputed.
+function checklistId(question, taken) {
+  const base =
+    String(question || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 40) || "question";
+  let id = base;
+  let n = 2;
+  while (taken.has(id)) id = `${base}_${n++}`;
+  taken.add(id);
+  return id;
+}
+
+el("checklist-refresh")?.addEventListener("click", () => {
+  checklistQuestions = null;
+  renderChecklist();
+  loadChecklist();
+});
+
+el("checklist-add")?.addEventListener("click", () => {
+  if (!checklistQuestions) return;
+  const taken = new Set(checklistQuestions.map((q) => q.id).filter(Boolean));
+  checklistQuestions.push({
+    id: checklistId(`question ${checklistQuestions.length + 1}`, taken),
+    group: checklistQuestions.at(-1)?.group || "",
+    question: "",
+    hint: "",
+    options: ["", ""],
+  });
+  markChecklistDirty();
+  renderChecklist();
+});
+
+el("checklist-seed")?.addEventListener("click", () => {
+  if (!checklistQuestions) return;
+  const have = new Set(checklistQuestions.map((q) => q.id));
+  // Adds what is missing rather than replacing: a shop that has already
+  // reworded half of these should not lose that by pressing the button.
+  let added = 0;
+  for (const q of STANDARD_CHECKLIST) {
+    if (have.has(q.id)) continue;
+    checklistQuestions.push({ ...q, options: [...q.options] });
+    added++;
+  }
+  if (added === 0) {
+    toast("Every standard question is already here.", "success");
+    return;
+  }
+  markChecklistDirty();
+  renderChecklist();
+  toast(`Added ${added} question${added === 1 ? "" : "s"} — edit, then Save.`, "success");
+});
+
+el("checklist-list")?.addEventListener("input", (e) => {
+  const input = e.target.closest("[data-q]");
+  if (!input || !checklistQuestions) return;
+  const q = checklistQuestions[Number(input.dataset.q)];
+  if (!q) return;
+
+  if (input.dataset.ckField) {
+    q[input.dataset.ckField] = input.value;
+    // An id is minted the first time a question is actually named, so a
+    // blank row added and then filled in gets a key that means something.
+    if (input.dataset.ckField === "question" && !String(q.id || "").trim()) {
+      const taken = new Set(checklistQuestions.map((x) => x.id).filter(Boolean));
+      q.id = checklistId(input.value, taken);
+    }
+  } else if (input.dataset.opt !== undefined) {
+    q.options[Number(input.dataset.opt)] = input.value;
+  }
+  markChecklistDirty();
+});
+
+el("checklist-list")?.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-ck]");
+  if (!btn || !checklistQuestions) return;
+  const qi = Number(btn.dataset.q);
+  const q = checklistQuestions[qi];
+  if (!q) return;
+  const oi = Number(btn.dataset.opt);
+
+  const swap = (arr, a, b) => {
+    if (a < 0 || b < 0 || a >= arr.length || b >= arr.length) return;
+    [arr[a], arr[b]] = [arr[b], arr[a]];
+  };
+
+  switch (btn.dataset.ck) {
+    case "opt-add":
+      q.options.push("");
+      break;
+    case "opt-del":
+      q.options.splice(oi, 1);
+      break;
+    case "opt-up":
+      swap(q.options, oi, oi - 1);
+      break;
+    case "opt-down":
+      swap(q.options, oi, oi + 1);
+      break;
+    case "q-up":
+      swap(checklistQuestions, qi, qi - 1);
+      break;
+    case "q-down":
+      swap(checklistQuestions, qi, qi + 1);
+      break;
+    case "q-del":
+      checklistQuestions.splice(qi, 1);
+      break;
+    default:
+      return;
+  }
+  markChecklistDirty();
+  renderChecklist();
+});
+
+el("checklist-save")?.addEventListener("click", async () => {
+  if (!checklistQuestions) return;
+  const btn = el("checklist-save");
+
+  const cleaned = checklistQuestions.map((q) => ({
+    id: String(q.id || "").trim(),
+    group: String(q.group || "").trim(),
+    question: String(q.question || "").trim(),
+    hint: String(q.hint || "").trim(),
+    options: (q.options || []).map((o) => String(o).trim()).filter(Boolean),
+  }));
+
+  const unnamed = cleaned.filter((q) => !q.question || !q.id);
+  if (unnamed.length) {
+    toast("Every question needs its wording.", "error");
+    return;
+  }
+  // Two answers is the minimum that is a question at all: with one there is
+  // nothing for the agent to decide, and the card would render a row they
+  // cannot answer.
+  const thin = cleaned.filter((q) => q.options.length < 2);
+  if (thin.length) {
+    toast("Every question needs at least two answers.", "error");
+    return;
+  }
+  const ids = cleaned.map((q) => q.id);
+  if (new Set(ids).size !== ids.length) {
+    toast("Two questions share an id — rename one.", "error");
+    return;
+  }
+
+  btn.disabled = true;
+  const previous = btn.textContent;
+  btn.textContent = "Saving…";
+  try {
+    await setDoc(
+      doc(db, "inspection_checklist", CHECKLIST_DOC),
+      { questions: cleaned },
+      { merge: true }
+    );
+    checklistQuestions = cleaned;
+    checklistDirty = false;
+    toast("Checklist saved — agents see it on their next job.", "success");
+    renderChecklist();
+  } catch (err) {
+    toast("Could not save: " + err.message, "error");
+    btn.disabled = false;
+    btn.textContent = previous;
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Staff — inspectors
 // ---------------------------------------------------------------------------
 
@@ -2713,6 +3139,8 @@ async function assignInspector(orderId, inspectorId) {
 
 // --- The inspector's own screen ---------------------------------------------
 
+let inspectorOrders = null;
+
 function startInspectorListener(uid) {
   const host = el("inspector-list");
   if (host) host.innerHTML = `<p class="empty">Loading your pickups…</p>`;
@@ -2720,8 +3148,11 @@ function startInspectorListener(uid) {
   inspectorUnsub = onSnapshot(
     q,
     (snap) => {
-      const mine = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      renderInspectorJobs(mine);
+      // Kept, so the checklist arriving after the first snapshot can redraw
+      // the cards with the questions in them rather than wait for the next
+      // change to an order.
+      inspectorOrders = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderInspectorJobs(inspectorOrders);
     },
     (err) => {
       const host = el("inspector-list");
@@ -3558,6 +3989,12 @@ function checkSummaryText(t) {
     `${t.passed} fine, ${t.left} not looked at`;
 }
 
+/// The name of a configured question, for a card rendering a filed answer.
+function checklistLabel(id) {
+  const q = (checklistQuestions || []).find((x) => x.id === id);
+  return q?.question || unpickKey(id);
+}
+
 // The name of a recorded check, for a verdict written by a version of this
 // panel that knew a check this one does not. Shown unpicked rather than
 // dropped, the same way an unknown measurement is.
@@ -3565,9 +4002,99 @@ function checkLabel(id) {
   return CONDITION_CHECKS.find((c) => c.id === id)?.label || unpickKey(id);
 }
 
+/// The configured questions, or null to fall back to the pass/fail list.
+///
+/// Null rather than an empty array on purpose: a shop that has not filled the
+/// checklist in keeps the fourteen built-in checks, so this ships without
+/// taking the agent's existing list away on the day it lands.
+function activeChecklist() {
+  const qs = (checklistQuestions || []).filter(
+    (q) => String(q.question || "").trim() && (q.options || []).length >= 2
+  );
+  return qs.length ? qs : null;
+}
+
+/// Whether an answer counts as something found.
+///
+/// The first answer on a question is the clean one by convention — "No
+/// scratch", "No defect" — which is stated in the editor and numbered in it.
+/// A flag per answer would be one more thing to keep correct and would say
+/// nothing the ordering does not.
+function isFinding(question, answer) {
+  if (!answer) return false;
+  return answer !== (question.options || [])[0];
+}
+
+function gradedTally(questions, answers) {
+  let found = 0;
+  let clean = 0;
+  for (const q of questions) {
+    const a = answers[q.id];
+    if (!a) continue;
+    if (isFinding(q, a)) found++;
+    else clean++;
+  }
+  return { failed: found, passed: clean, left: questions.length - found - clean };
+}
+
+function gradedChecksBlock(order, questions) {
+  const answers = answersFor(order.id);
+  let group = "";
+
+  const rows = questions
+    .map((q) => {
+      const chosen = answers[q.id];
+      let head = "";
+      const g = String(q.group || "").trim();
+      if (g && g !== group) {
+        group = g;
+        head = `<div class="check-group">${escapeHtml(g)}</div>`;
+      }
+
+      const opts = (q.options || [])
+        .map(
+          (opt, j) => `
+          <button type="button"
+                  class="ck-pick${chosen === opt ? " is-on" : ""}${j === 0 ? " ck-pick--clean" : ""}"
+                  aria-pressed="${chosen === opt}"
+                  data-ck-pick="${escapeHtml(order.id)}|${escapeHtml(q.id)}|${escapeHtml(String(j))}">
+            ${escapeHtml(String(opt))}
+          </button>`
+        )
+        .join("");
+
+      return `
+        ${head}
+        <div class="ck-row${isFinding(q, chosen) ? " ck-row--fault" : ""}"
+             data-ck-row="${escapeHtml(order.id)}|${escapeHtml(q.id)}">
+          <div class="ck-row__q">
+            ${escapeHtml(String(q.question))}
+            ${q.hint ? `<span class="cell-sub">${escapeHtml(String(q.hint))}</span>` : ""}
+          </div>
+          <div class="ck-row__opts">${opts}</div>
+        </div>`;
+    })
+    .join("");
+
+  const tally = gradedTally(questions, answers);
+  return `
+    <details class="job-detail job-detail--checks"${tally.failed ? " open" : ""}>
+      <summary data-check-tally="${escapeHtml(order.id)}">${escapeHtml(checkSummaryText(tally))}</summary>
+      <div class="cell-sub job-detail__passed">
+        Pick what you found on each question. The first answer is the clean
+        one. None of this changes the amount — it is saved with the figure you
+        confirm, as the record of what the phone was.
+      </div>
+      ${rows}
+    </details>`;
+}
+
 function checksBlock(order) {
   // Once a finding is filed the list is a record, not a form.
   if (order.inspection) return recordedChecksBlock(order);
+
+  const questions = activeChecklist();
+  if (questions) return gradedChecksBlock(order, questions);
 
   const claims = declaredClaims(order);
   const answers = answersFor(order.id);
@@ -3624,16 +4151,52 @@ function recordedChecksBlock(order) {
   const checks = order.inspection?.checks;
   if (!checks || typeof checks !== "object" || Array.isArray(checks)) return "";
 
-  const known = CONDITION_CHECKS.filter((c) => checks[c.id] === "pass" || checks[c.id] === "fail")
-    .map((c) => [c.id, checks[c.id], c.group]);
-  const unknown = Object.keys(checks)
-    .filter((k) => !CONDITION_CHECKS.some((c) => c.id === k))
-    .filter((k) => checks[k] === "pass" || checks[k] === "fail")
-    .map((k) => [k, checks[k], ""]);
-  const rows = [...known, ...unknown];
+  // Both shapes, because an order filed before the checklist existed holds
+  // "pass"/"fail" and one filed after holds the answer the agent picked.
+  // Neither is rewritten, so the record keeps saying what was actually
+  // recorded at the time.
+  const configured = checklistQuestions || [];
+  const rows = Object.keys(checks)
+    .map((id) => {
+      const value = checks[id];
+      if (typeof value !== "string" || !value) return null;
+
+      if (value === "pass" || value === "fail") {
+        const legacy = CONDITION_CHECKS.find((c) => c.id === id);
+        return {
+          id,
+          group: legacy?.group || "",
+          what: checkLabel(id),
+          said: value === "fail" ? "FAIL" : "pass",
+          fault: value === "fail",
+        };
+      }
+
+      const q = configured.find((x) => x.id === id);
+      return {
+        id,
+        group: q?.group || "",
+        what: checklistLabel(id),
+        said: value,
+        // Without the question we cannot tell its clean answer from its
+        // worst, so it is shown plainly rather than guessed at.
+        fault: q ? isFinding(q, value) : false,
+      };
+    })
+    .filter(Boolean);
+
   if (rows.length === 0) return "";
 
-  const failed = rows.filter(([, verdict]) => verdict === "fail");
+  // Configured order first, so the record reads the way the form did.
+  const rank = (id) => {
+    const i = configured.findIndex((q) => q.id === id);
+    if (i !== -1) return i;
+    const j = CONDITION_CHECKS.findIndex((c) => c.id === id);
+    return j !== -1 ? configured.length + j : Number.MAX_SAFE_INTEGER;
+  };
+  rows.sort((a, b) => rank(a.id) - rank(b.id));
+
+  const failed = rows.filter((r) => r.fault);
   return `
     <details class="job-detail"${failed.length ? " open" : ""}>
       <summary>
@@ -3642,13 +4205,13 @@ function recordedChecksBlock(order) {
       </summary>
       ${rows
         .map(
-          ([id, verdict, group]) => `
-        <div class="job-detail__row ${verdict === "fail" ? "job-detail__row--fault" : ""}">
+          (r) => `
+        <div class="job-detail__row ${r.fault ? "job-detail__row--fault" : ""}">
           <span class="job-detail__what">
-            ${escapeHtml(checkLabel(id))}
-            ${group ? `<span class="cell-sub">${escapeHtml(group)}</span>` : ""}
+            ${escapeHtml(r.what)}
+            ${r.group ? `<span class="cell-sub">${escapeHtml(r.group)}</span>` : ""}
           </span>
-          <span class="job-detail__cost">${verdict === "fail" ? "FAIL" : "pass"}</span>
+          <span class="job-detail__cost">${escapeHtml(r.said)}</span>
         </div>`
         )
         .join("")}
@@ -3660,7 +4223,14 @@ function recordedChecksBlock(order) {
 // also be a feat of memory.
 function faultHint(orderId) {
   const answers = checkAnswers.get(orderId) || {};
-  const names = CONDITION_CHECKS.filter((c) => answers[c.id] === "fail").map((c) => c.label);
+  const questions = activeChecklist();
+
+  const names = questions
+    ? questions
+        .filter((q) => isFinding(q, answers[q.id]))
+        .map((q) => `${q.question} — ${answers[q.id]}`)
+    : CONDITION_CHECKS.filter((c) => answers[c.id] === "fail").map((c) => c.label);
+
   if (names.length === 0) return "";
   return `Faults you marked: ${names.map(escapeHtml).join(", ")}`;
 }
@@ -3671,6 +4241,19 @@ function faultHint(orderId) {
 function answeredChecks(orderId) {
   const answers = checkAnswers.get(orderId) || {};
   const out = {};
+
+  const questions = activeChecklist();
+  if (questions) {
+    // Only answers that are actually one of this question's options. The
+    // rules cannot look inside the map — Firestore cannot iterate one — so
+    // an agent's browser is the only place a stray value could come from.
+    for (const q of questions) {
+      const a = answers[q.id];
+      if (a && (q.options || []).includes(a)) out[q.id] = a;
+    }
+    return out;
+  }
+
   for (const check of CONDITION_CHECKS) {
     if (answers[check.id] === "pass" || answers[check.id] === "fail") {
       out[check.id] = answers[check.id];
@@ -3680,6 +4263,47 @@ function answeredChecks(orderId) {
 }
 
 function wireChecks(host) {
+  const questions = activeChecklist();
+
+  host.querySelectorAll("[data-ck-pick]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      // Split from the right, same reason as the pass/fail rows: the order
+      // id is whatever is left, so an id carrying the separator cannot move
+      // an answer onto another row.
+      const parts = String(btn.dataset.ckPick).split("|");
+      const index = Number(parts.pop());
+      const questionId = parts.pop();
+      const orderId = parts.join("|");
+
+      const question = (questions || []).find((q) => q.id === questionId);
+      if (!question) return;
+      const value = (question.options || [])[index];
+      if (value === undefined) return;
+
+      const answers = answersFor(orderId);
+      // Tapping the answer already showing clears it, so an agent who
+      // mis-taps in a doorway can put the row back to unanswered rather than
+      // leave a finding they did not mean.
+      if (answers[questionId] === value) delete answers[questionId];
+      else answers[questionId] = value;
+
+      const row = btn.closest("[data-ck-row]");
+      row.querySelectorAll("[data-ck-pick]").forEach((other) => {
+        const on = other === btn && answers[questionId] === value;
+        other.classList.toggle("is-on", on);
+        other.setAttribute("aria-pressed", String(on));
+      });
+      row.classList.toggle("ck-row--fault", isFinding(question, answers[questionId]));
+
+      const tally = host.querySelector(`[data-check-tally="${CSS.escape(orderId)}"]`);
+      if (tally) {
+        tally.textContent = checkSummaryText(gradedTally(questions, answers));
+      }
+      const faults = host.querySelector(`[data-check-faults="${CSS.escape(orderId)}"]`);
+      if (faults) faults.innerHTML = faultHint(orderId);
+    });
+  });
+
   host.querySelectorAll("[data-check-set]").forEach((btn) => {
     btn.addEventListener("click", () => {
       // Split from the right: the order id is whatever is left, so an id
