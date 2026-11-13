@@ -644,39 +644,112 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
 /* ===========================================================================
    MOBILE — under 720px the tables become cards.
 
-   Each <tr> turns into a CSS grid: a 52px media column and a content
+   Each <tr> turns into a CSS grid: a 56px media column and a content
    column. By default every cell spans both (full width) and renders its
    data-label on the left with the value on the right; only .cell-media and
-   .cell-main opt into the two-column top row.
+   .cell-main opt into the two-column top row. Price / payout cells are
+   promoted to a large, green headline so the number that matters is the
+   first thing the eye lands on, and action rows become a 2-column grid of
+   44px touch targets instead of a squeezed inline row.
    =========================================================================== */
 
 @media (max-width: 720px) {
 
-  body { font-size: 15px; }
+  :root { --topbar-h: 52px; }
 
-  .content { padding: 18px 14px calc(56px + var(--safe-b)); }
+  body { font-size: 15px; line-height: 1.55; }
 
-  .topbar { padding: 10px 14px; padding-top: calc(10px + env(safe-area-inset-top, 0px)); gap: 8px; }
-  .topbar-right { gap: 8px; }
-  /* The logo alone identifies the app; the wordmark only squeezes the
-     controls that actually do something. */
+  .content { padding: 16px 14px calc(72px + var(--safe-b)); max-width: 100%; }
+
+  /* --- top bar: compact, email hidden (it only crowds the controls) --- */
+  .topbar {
+    padding: 8px 12px;
+    padding-top: calc(8px + env(safe-area-inset-top, 0px));
+    gap: 8px;
+    min-height: var(--topbar-h);
+  }
+  .topbar-brand { gap: 8px; }
+  .login-logo--sm { width: 32px; height: 32px; font-size: 13px; border-radius: 9px; }
   .topbar-title { display: none; }
-  .tabs { top: 52px; padding: 0 8px; }
-  .tab-btn { padding: 12px 14px; font-size: 14px; min-height: 48px; }
+  .topbar-right { gap: 8px; }
+  .admin-email { display: none; }
+  #sign-out { min-height: 40px; padding: 8px 14px; font-size: 13px; }
+  .install-btn { min-height: 40px; padding: 8px 12px; }
+
+  /* --- tabs: pill segmented bar, snap-scrolling, fade at the edge --- */
+  .tabs {
+    top: var(--topbar-h);
+    padding: 8px 12px;
+    gap: 6px;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    mask-image: linear-gradient(to right, black 90%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, black 90%, transparent 100%);
+  }
+  .tab-btn {
+    min-height: 44px;
+    padding: 10px 14px;
+    font-size: 13.5px;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 999px;
+    scroll-snap-align: start;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tab-btn--active {
+    background: var(--primary-soft);
+    border-color: rgba(50, 205, 50, 0.4);
+    color: var(--on-primary-soft);
+  }
+  .tab-icon { font-size: 15px; line-height: 1; flex: none; }
   .tab-label-long { display: none; }
   .tab-label-short { display: inline; }
 
-  .panel-header h2 { font-size: 18px; }
+  .panel-header { margin-bottom: 14px; }
+  .panel-header h2 { font-size: 20px; letter-spacing: -0.01em; }
+  .panel-sub { font-size: 13px; line-height: 1.5; }
 
-  /* 16px prevents iOS Safari from auto-zooming the viewport on focus. */
+  /* --- login: tighter card, larger tap targets --- */
+  .login-screen { align-items: flex-start; padding: 28px 16px; }
+  .login-card { padding: 26px 20px; border-radius: 20px; }
+  .login-logo { width: 56px; height: 56px; font-size: 18px; border-radius: 14px; }
+  .login-brand h1 { font-size: 21px; }
+  #login-submit { min-height: 52px; font-size: 15.5px; }
+  .pwd-toggle { min-width: 56px; min-height: 44px; }
+
+  /* 16px on every input stops iOS Safari auto-zooming on focus. */
   .field input, .field select,
   .variant-add-form input,
-  .status-select { font-size: 16px; }
-  .field input, .field select { padding: 12px; }
+  .status-select, .assign-select,
+  .ck-opt__text, .ck-opt__pctinput,
+  .rule-pct input, .spec-suggest__price,
+  .inspection__amount, .inspection__reason,
+  .staff-form input, .rule-row input, .rule-row select {
+    font-size: 16px;
+  }
+  .field input, .field select { padding: 12px; border-radius: 12px; min-height: 48px; }
+  .field span { font-size: 12px; margin-bottom: 5px; }
+  .field-help { font-size: 12.5px; line-height: 1.55; }
 
-  .toolbar { flex-direction: column; align-items: stretch; gap: 12px; }
+  /* --- toolbar: 2-column filter grid instead of a full-width stack --- */
+  .toolbar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    align-items: end;
+    margin-bottom: 12px;
+  }
   .field--inline, .field--grow { min-width: 0; width: 100%; }
-  .toolbar .btn { width: 100%; padding: 13px; font-size: 15px; }
+  .toolbar .field--grow { grid-column: 1 / -1; }
+  .toolbar .btn { width: 100%; min-height: 46px; padding: 12px; font-size: 14.5px; }
+  #custom-brand-row { grid-column: 1 / -1; }
+
+  /* --- buttons: 44px minimum touch targets --- */
+  .btn { min-height: 44px; }
+  .btn--small { min-height: 44px; padding: 10px 14px; font-size: 13.5px; }
+  .btn--tiny { min-height: 40px; padding: 8px 12px; font-size: 12.5px; }
 
   /* --- table → cards --- */
   .table-wrap { background: transparent; border: none; border-radius: 0; overflow: visible; }
@@ -685,15 +758,15 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
 
   tbody tr {
     display: grid;
-    grid-template-columns: 52px minmax(0, 1fr);
+    grid-template-columns: 56px minmax(0, 1fr);
     align-items: center;
     gap: 2px 12px;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: var(--radius);
+    border-radius: 16px;
     padding: 14px;
     margin-bottom: 10px;
-    box-shadow: var(--shadow);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
   }
   tbody tr:hover { background: var(--surface); }
 
@@ -703,20 +776,20 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 7px 0;
+    padding: 8px 0;
     border-bottom: 1px solid var(--border);
-    min-height: 34px;
+    min-height: 36px;
   }
   tbody tr td:last-child,
   tbody tr td:has(+ .cell-actions) { border-bottom: none; }
 
   tbody td[data-label]::before {
     content: attr(data-label);
-    font-size: 11.5px;
+    font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--text-tertiary);
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
     flex: 0 0 auto;
   }
 
@@ -727,13 +800,16 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
     border-bottom: none;
     display: block;
   }
+  td.cell-media .cell-thumb { width: 56px; height: 56px; border-radius: 12px; }
   td.cell-main {
     grid-column: 2;
     padding: 0 0 10px;
     border-bottom: none;
     display: block;
+    min-width: 0;
   }
-  td.cell-main .cell-title { font-size: 15.5px; }
+  td.cell-main .cell-title { font-size: 16px; line-height: 1.35; }
+  td.cell-main .cell-sub { font-size: 12.5px; margin-top: 4px; }
 
   /* A title cell with no thumbnail beside it spans the full width. `order`
      lifts it to the top of the card without disturbing the desktop column
@@ -746,27 +822,69 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
     border-bottom: 1px solid var(--border);
     display: block;
   }
+  td.cell-main--full .cell-title { font-size: 16px; line-height: 1.35; }
+
+  /* Price is the headline number on the card — large, green, right-aligned. */
+  td.cell-price,
+  td[data-label="Payout"],
+  td[data-label="Price"] {
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--on-primary-soft);
+    font-variant-numeric: tabular-nums;
+    padding: 10px 0;
+  }
+  td.cell-price .cell-sub,
+  td[data-label="Payout"] .cell-sub,
+  td[data-label="Price"] .cell-sub {
+    display: block;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    text-align: right;
+  }
 
   /* The dropdown already shows the status; the read-only badge is noise. */
   td.cell-status-badge { display: none; }
 
+  /* Status + assign selects stack full-width instead of squeezing. */
+  td[data-label="Status"] {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  td[data-label="Status"]::before { align-self: flex-start; }
+  .status-select, .assign-select {
+    width: 100%;
+    max-width: none;
+    min-height: 48px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    font-size: 16px;
+  }
+  .assign-select { margin-top: 0; }
+
   td.cell-actions {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 8px;
     padding: 12px 0 0;
     border-bottom: none;
     white-space: normal;
   }
   td.cell-actions .btn {
-    flex: 1;
+    flex: none;
     margin-left: 0;
-    min-height: 44px;
+    min-height: 46px;
     font-size: 13.5px;
     padding: 10px 8px;
+    width: 100%;
   }
   td.cell-actions .btn + .btn { margin-left: 0; }
+  /* A single action (Orders → Details) takes the full row. */
+  td.cell-actions .btn:only-child { grid-column: 1 / -1; }
 
-  .empty { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); }
+  .empty { background: var(--surface); border-radius: 16px; border: 1px solid var(--border); padding: 28px 18px; font-size: 14px; }
   tbody tr:has(.empty) {
     display: block;
     padding: 0;
@@ -775,8 +893,6 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
     background: transparent;
   }
   tbody tr td.empty { border-bottom: none; display: block; }
-
-  .status-select { width: 100%; max-width: 200px; padding: 10px 12px; border-radius: var(--radius-sm); }
 
   /* --- variants --- */
   .variant-row { margin-top: -10px; }
@@ -792,16 +908,16 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
   .variant-panel {
     padding: 14px;
     background: var(--primary-soft);
-    border-radius: var(--radius);
+    border-radius: 16px;
   }
-  .variant-item { flex-wrap: wrap; gap: 8px; padding: 12px; }
+  .variant-item { flex-wrap: wrap; gap: 8px; padding: 12px; border-radius: 12px; }
   .variant-storage { min-width: 0; flex: 1 0 auto; font-size: 15px; }
   .variant-price { flex: 0 0 auto; font-size: 15px; }
   .variant-item .btn--tiny {
     flex: 1 1 40%;
-    min-height: 40px;
+    min-height: 44px;
     font-size: 13px;
-    border-radius: var(--radius-sm);
+    border-radius: 10px;
   }
   .variant-add-form { flex-direction: column; }
   .variant-add-form input,
@@ -809,15 +925,17 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
   .variant-add-form input[name="base_price"] {
     width: 100%;
     padding: 12px;
+    min-height: 48px;
+    border-radius: 12px;
   }
-  .variant-add-form .btn { width: 100%; min-height: 46px; }
+  .variant-add-form .btn { width: 100%; min-height: 48px; }
 
-  /* --- modal becomes a bottom sheet --- */
+  /* --- modal becomes a bottom sheet with a grab handle --- */
   .modal {
     margin: auto auto 0 auto;
     width: 100%;
     max-width: 100%;
-    border-radius: 20px 20px 0 0;
+    border-radius: 22px 22px 0 0;
     max-height: 92dvh;
   }
   .modal[open] { animation: sheet-in 0.24s cubic-bezier(0.2, 0, 0.1, 1); }
@@ -827,19 +945,34 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
   }
   .modal-card {
     width: auto;
-    padding: 20px 18px calc(20px + var(--safe-b));
+    padding: 12px 18px calc(20px + var(--safe-b));
+    position: relative;
+  }
+  .modal-card::before {
+    content: "";
+    display: block;
+    width: 40px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--border-strong);
+    margin: 0 auto 14px;
   }
   .modal-card h3 { font-size: 18px; }
   .modal-actions { margin-top: 18px; }
-  .modal-actions .btn { flex: 1; min-height: 48px; }
+  .modal-actions .btn { flex: 1; min-height: 50px; font-size: 15px; }
 
   .toast-host { left: 14px; right: 14px; bottom: calc(14px + var(--safe-b)); }
-  .toast { max-width: none; }
+  .toast { max-width: none; font-size: 14px; padding: 13px 16px; border-radius: 12px; }
+
+  .warning-note { font-size: 13px; line-height: 1.55; border-radius: 12px; }
+  .cache-note { font-size: 12.5px; }
 }
 
 @media (max-width: 480px) {
-  .admin-email { display: none; }
-  .tab-btn { padding: 12px 12px; }
+  .tab-btn { padding: 10px 12px; font-size: 13px; }
+  .content { padding-left: 12px; padding-right: 12px; }
+  tbody tr { padding: 12px; border-radius: 14px; }
+  td.cell-price, td[data-label="Payout"], td[data-label="Price"] { font-size: 18px; }
 }
 
 /* Storage quick-picks in the variant modal.
@@ -1878,6 +2011,7 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-100, 12px);
+  width: 100%;
 }
 .ck-pick__label { flex: 1 1 auto; min-width: 0; }
 .ck-pick--pic .ck-pick__pct { margin-left: auto; flex: none; }
@@ -2118,3 +2252,519 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
    says it a second time. Kept once a finding is filed, where it carries the
    settled figure. */
 .flow .inspection:not(.inspection--done) .inspection__head { display: none; }
+
+/* ===========================================================================
+   MOBILE POLISH — components defined after the main mobile block
+   (pricing, checklist editor, staff, job cards). Kept at the end of the
+   file so these rules win over the base styles above at equal specificity.
+   =========================================================================== */
+
+@media (max-width: 720px) {
+
+  /* --- pricing rules: one field per line, money preview as a chip --- */
+  .rule-card { padding: 16px 14px; border-radius: 16px; }
+  .rule-head { flex-direction: column; align-items: stretch; gap: 10px; }
+  .rule-head h3 { font-size: 16.5px; }
+  .rule-head__actions { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .rule-head__actions .btn { flex: none; width: 100%; min-height: 46px; }
+  .rule-used { font-size: 13px; line-height: 1.55; max-width: none; }
+  .rule-row { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px; border-radius: 12px; }
+  .rule-row__fields { flex-direction: column; gap: 10px; }
+  .field--tight { min-width: 0; width: 100%; }
+  .rule-row input, .rule-row select { min-height: 48px; border-radius: 12px; padding: 12px; width: 100%; }
+  .rule-pct { width: 100%; }
+  .rule-pct input { flex: 1 1 auto; width: auto; min-height: 48px; }
+  .rule-pct__money {
+    flex: 0 0 auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--on-primary-soft);
+  }
+  .rule-row__move { justify-content: flex-end; }
+  .rule-row__move .btn--tiny { min-height: 44px; min-width: 44px; font-size: 15px; }
+  .rule-worst { font-size: 13px; }
+  .pricing-toolbar { gap: 8px; }
+  .pricing-toolbar .btn { min-height: 44px; flex: 1 1 40%; }
+
+  /* --- checklist editor: full-width question, larger option rows --- */
+  .ck-card { padding: 16px 14px; border-radius: 16px; }
+  .ck-head__fields { flex-direction: column; gap: 10px; }
+  .ck-head__fields .field { width: 100%; }
+  .ck-opt { gap: 8px; margin-bottom: 8px; }
+  .ck-opt__n { width: 26px; height: 26px; font-size: 12px; }
+  .ck-opt__text { min-height: 48px; padding: 12px; border-radius: 12px; font-size: 16px; }
+  .ck-opt__pctinput { width: 64px; min-height: 48px; border-radius: 12px; }
+  .ck-opt .btn--tiny { min-height: 44px; min-width: 44px; font-size: 15px; }
+  .ck-opts .btn { min-height: 44px; }
+
+  /* --- staff --- */
+  .staff-form { max-width: none; gap: 12px; }
+  .staff-form input { min-height: 48px; border-radius: 12px; padding: 12px; }
+  #staff-submit { min-height: 50px; font-size: 15px; }
+  .staff-item { padding: 12px 0; }
+  .card { padding: 16px 14px; border-radius: 16px; }
+
+  /* --- job / inspector cards --- */
+  .job-card { border-radius: 16px; padding: 14px; }
+  .check__btn { min-height: 48px; min-width: 64px; padding: 10px 16px; font-size: 14px; }
+  .ck-pick { min-height: 44px; padding: 10px 14px; font-size: 14px; }
+  .job-detail > summary { min-height: 48px; display: flex; align-items: center; font-size: 15px; }
+
+  /* --- order sheet tabs: larger pills --- */
+  .od__tab { min-height: 48px; padding: 10px 14px; font-size: 14px; }
+  .od__close { min-height: 48px; padding: 10px 16px; font-size: 14px; }
+
+  /* --- detail rows: roomier, easier to scan --- */
+  .detail-row { padding: 11px 0; font-size: 14px; }
+  .detail-row--total .v { font-size: 19px; }
+
+  /* --- focus visibility for keyboard / switch users on touch devices --- */
+  .btn:focus-visible, .tab-btn:focus-visible, .chip:focus-visible {
+    outline: 2px solid var(--primary-dark);
+    outline-offset: 2px;
+  }
+}
+
+@media (max-width: 380px) {
+  .toolbar { grid-template-columns: 1fr 1fr; gap: 8px; }
+  td.cell-actions { grid-template-columns: 1fr 1fr; }
+  .rule-head__actions { grid-template-columns: 1fr 1fr; }
+}
+
+/* ===========================================================================
+   ROUND 2 — Mobile redesign: bottom navigation, sticky filters, price
+   banners, status colours. Desktop keeps the top tabs; the bottom bar and
+   FAB only exist under 720px.
+   =========================================================================== */
+
+/* --- status colours (all screen sizes) --- */
+.badge--status-placed { background: #E8EEF7; color: #3B5BDB; }
+.badge--status-agent_assigned { background: var(--warning-soft); color: #92651a; }
+.badge--status-inspection { background: #F3E8FD; color: #7C3AED; }
+.badge--status-paid { background: var(--success-soft); color: var(--on-primary-soft); }
+.badge--status-declined { background: var(--error-soft); color: var(--error); }
+
+/* --- bottom nav + FAB: desktop hides both entirely --- */
+.bottom-nav { display: none; }
+.fab { display: none; }
+
+@media (max-width: 720px) {
+
+  /* Top tabs are replaced by the bottom bar on a phone — one navigation,
+     within thumb reach, instead of two competing bars. */
+  .tabs { display: none; }
+
+  /* Room for the fixed bottom bar + FAB. */
+  .content { padding-bottom: calc(96px + var(--safe-b)) !important; }
+
+  /* --- bottom navigation --- */
+  .bottom-nav {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 40;
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid var(--border);
+    padding: 6px 4px calc(6px + var(--safe-b));
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
+  }
+  .bottom-nav__btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-height: 56px;
+    padding: 6px 2px;
+    border: none;
+    border-radius: 14px;
+    background: transparent;
+    color: var(--text-tertiary);
+    font-family: inherit;
+    font-size: 10.5px;
+    font-weight: 600;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .bottom-nav__icon { font-size: 20px; line-height: 1.2; }
+  .bottom-nav__btn--active {
+    color: var(--on-primary-soft);
+    background: var(--primary-soft);
+  }
+  .bottom-nav__btn:active { transform: scale(0.95); }
+
+  /* --- FAB: Add model, thumb-reachable above the bottom bar --- */
+  .fab {
+    display: grid;
+    place-items: center;
+    position: fixed;
+    right: 16px;
+    bottom: calc(84px + var(--safe-b));
+    z-index: 39;
+    width: 56px;
+    height: 56px;
+    border: none;
+    border-radius: 999px;
+    background: var(--primary);
+    color: #fff;
+    font-size: 28px;
+    font-weight: 300;
+    line-height: 1;
+    box-shadow: 0 8px 24px rgba(50, 205, 50, 0.45);
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .fab:active { transform: scale(0.94); }
+  .fab[hidden] { display: none !important; }
+
+  /* --- sticky filter toolbar: filters stay put while cards scroll --- */
+  .toolbar {
+    position: sticky;
+    top: var(--topbar-h);
+    z-index: 15;
+    background: var(--bg);
+    padding: 10px 0;
+    margin-left: -2px;
+    margin-right: -2px;
+    border-radius: 0 0 14px 14px;
+  }
+
+  /* --- cards: softer, rounder, more premium --- */
+  tbody tr {
+    border-radius: 20px;
+    border-color: #E9ECEC;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    padding: 16px;
+  }
+
+  /* --- price / payout as a highlighted banner inside the card --- */
+  td.cell-price,
+  td[data-label="Payout"],
+  td[data-label="Price"] {
+    background: var(--primary-soft);
+    border: 1px solid rgba(50, 205, 50, 0.25);
+    border-radius: 14px;
+    padding: 10px 14px;
+    margin: 8px 0 4px;
+  }
+  td.cell-price::before,
+  td[data-label="Payout"]::before,
+  td[data-label="Price"]::before {
+    color: var(--on-primary-soft);
+    font-size: 11px;
+  }
+
+  /* Variants is the primary action on a catalog card. */
+  td.cell-actions [data-action="variants"] {
+    background: var(--primary);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(50, 205, 50, 0.3);
+  }
+  td.cell-actions [data-action="delete-model"] {
+    background: var(--error-soft);
+    color: var(--error);
+  }
+
+  /* --- empty states get an icon + breathing room --- */
+  .empty { font-size: 15px; }
+  .empty::before {
+    content: "📭";
+    display: block;
+    font-size: 36px;
+    margin-bottom: 10px;
+  }
+
+  /* --- topbar gets a soft shadow so sticky content slides under it --- */
+  .topbar { box-shadow: 0 1px 12px rgba(0, 0, 0, 0.05); }
+
+  /* --- rule / checklist / staff cards match the new radius --- */
+  .rule-card, .ck-card, .card, .job-card { border-radius: 20px; }
+
+  /* Search field gets a magnifier affordance. */
+  input[type="search"] {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: 12px center;
+    padding-left: 40px !important;
+  }
+}
+
+/* ===========================================================================
+   CHECKLIST REDESIGN — question moves and answer moves are now two clearly
+   separate, labelled controls. Before, both were identical tiny ↑ ↓ ✕ icons
+   with only a tooltip, so it was impossible to tell what would move.
+   =========================================================================== */
+
+/* --- question header: "Question 2 of 5" + id --- */
+.ck-qhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.ck-qnum {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--on-primary-soft);
+  background: var(--primary-soft);
+  border-radius: 999px;
+  padding: 5px 12px;
+}
+.ck-qid { color: var(--text-tertiary); font-size: 12px; }
+.ck-qid code { background: var(--bg); padding: 2px 7px; border-radius: 6px; }
+
+.ck-clean-note {
+  margin: 10px 0 4px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 8px 11px;
+}
+
+/* --- question move bar: one labelled place for moving the whole question --- */
+.ck-qmove {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border-strong);
+}
+.ck-qmove__label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-right: auto;
+}
+.ck-move-btn {
+  min-height: 40px;
+  padding: 9px 14px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.ck-move-btn:disabled { opacity: 0.4; }
+
+/* --- answer rows: number, text, %, then labelled move group --- */
+.ck-opt {
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+}
+.ck-opt--clean {
+  background: var(--success-soft);
+  border-color: rgba(34, 197, 94, 0.35);
+}
+.ck-opt__n small { font-size: 9px; font-weight: 600; opacity: 0.7; margin-left: 1px; }
+.ck-opt__move {
+  display: inline-flex;
+  gap: 6px;
+  flex: none;
+  margin-left: auto;
+}
+.ck-opt__clean-tag {
+  flex: 1 1 100%;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--on-primary-soft);
+}
+
+/* Flash the moved item so the eye can follow where it went. */
+@keyframes ck-flash {
+  0% { outline: 3px solid var(--primary); outline-offset: 2px; }
+  100% { outline: 3px solid transparent; outline-offset: 2px; }
+}
+.ck-flash { animation: ck-flash 1.4s ease; border-radius: 12px; }
+
+/* --- pricing move buttons get the same labelled treatment --- */
+.rule-row__move .btn--tiny {
+  min-height: 36px;
+  padding: 8px 12px;
+  font-size: 12.5px;
+}
+
+/* --- mobile: answer moves drop to their own full-width row --- */
+@media (max-width: 720px) {
+  .ck-opt { padding: 10px; gap: 8px; }
+  .ck-opt__move {
+    flex: 1 1 100%;
+    margin-left: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 8px;
+  }
+  .ck-opt__move .ck-move-btn {
+    width: 100%;
+    min-height: 48px;
+    font-size: 14px;
+    border-radius: 12px;
+  }
+  .ck-opt__move .btn--danger { min-width: 52px; }
+
+  /* Question move bar: three big labelled buttons, full width. */
+  .ck-qmove { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .ck-qmove__label { grid-column: 1 / -1; margin-right: 0; font-size: 13px; }
+  .ck-qmove .ck-move-btn { width: 100%; min-height: 50px; font-size: 14px; border-radius: 12px; }
+  .ck-qmove .btn--danger { grid-column: 1 / -1; }
+
+  .ck-qhead { margin-bottom: 8px; }
+  .ck-clean-note { font-size: 13px; }
+}
+
+/* ===========================================================================
+   INSPECTOR PRICE PILLS — every answer shows what it costs (% + ₹) so the
+   agent can decide without guessing. Display only; no logic changed.
+   =========================================================================== */
+
+.ck-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.ck-pick__label { flex: 1 1 auto; min-width: 0; text-align: left; }
+
+/* The price pill: bold, pill-shaped, impossible to miss. */
+.ck-pick__pct {
+  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-left: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--error-soft);
+  color: var(--error);
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ck-pick__money {
+  font-size: 11.5px;
+  font-weight: 700;
+  opacity: 0.85;
+}
+/* Clean answer: green 0% — good news, not a finding. */
+.ck-pick__pct--clean {
+  background: var(--success-soft);
+  color: var(--on-primary-soft);
+}
+/* Priced at zero (not yet priced by the shop): quiet grey 0%. */
+.ck-pick__pct--zero {
+  background: var(--bg);
+  color: var(--text-tertiary);
+  font-weight: 700;
+}
+/* Selected answer keeps its pill readable on the tinted button. */
+.ck-pick.is-on .ck-pick__pct { background: rgba(255, 255, 255, 0.75); }
+.ck-pick--clean.is-on .ck-pick__pct--clean { background: rgba(255, 255, 255, 0.75); }
+
+/* Question text: larger and bolder so it reads at arm's length outdoors. */
+.ck-row__q { font-size: 15px; font-weight: 700; line-height: 1.4; }
+.ck-row__q .cell-sub { font-size: 13px; margin-top: 3px; }
+
+/* Flow (one question at a time): bigger pills, full-width buttons. */
+.flow .ck-pick__pct { font-size: 14px; padding: 6px 12px; }
+.flow .ck-pick__money { font-size: 12.5px; }
+.flow .ck-row__q { font-size: 1.125rem; }
+
+/* Recorded answers: the % rides beside the answer text. */
+.job-detail__cost { font-weight: 700; }
+
+/* Non-clean answer left at 0% — cannot be saved. Flagged in the editor so
+   it is fixed before the Save button is ever pressed. */
+.ck-pct--zero {
+  border-color: var(--error) !important;
+  background: var(--error-soft) !important;
+  color: var(--error);
+  font-weight: 700;
+}
+.ck-zero-note {
+  margin: 10px 0 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #92651a;
+  background: var(--warning-soft);
+  border-radius: 10px;
+  padding: 8px 11px;
+}
+
+/* ===========================================================================
+   CHECKLIST EDITOR — COMPACT MODE
+   The question cards ate too much vertical space. Same layout, tighter skin:
+   smaller paddings, rows and fonts so more questions fit on one screen.
+   Touch targets stay >= 36px; the mobile block keeps them comfortable.
+   =========================================================================== */
+
+/* --- desktop compaction --- */
+.ck-card { padding: 12px 14px; margin-bottom: 10px; border-radius: 14px; }
+.ck-qhead { margin-bottom: 6px; }
+.ck-qnum { font-size: 10.5px; padding: 3px 10px; }
+.ck-qid code { padding: 1px 6px; }
+.ck-head__fields { gap: 8px; }
+.ck-head__fields input { padding: 6px 10px; font-size: 13px; min-height: 36px; }
+.ck-clean-note { margin: 6px 0 4px; padding: 5px 9px; font-size: 11.5px; line-height: 1.4; border-radius: 8px; }
+.ck-zero-note { margin: 6px 0 4px; padding: 5px 9px; font-size: 11.5px; line-height: 1.4; border-radius: 8px; }
+.ck-opts { margin: 6px 0; }
+.ck-opt { gap: 6px; margin-bottom: 4px; }
+.ck-opt__n { width: 20px; height: 20px; font-size: 10px; }
+.ck-opt__text { padding: 5px 9px; font-size: 13px; min-height: 34px; border-radius: 7px; }
+.ck-opt__pctinput { width: 48px; padding: 5px 6px; font-size: 13px; min-height: 34px; border-radius: 7px; }
+.ck-opt__move .btn--tiny { min-height: 30px; min-width: 0; padding: 3px 8px; font-size: 12px; border-radius: 7px; }
+.ck-opt__clean-tag { font-size: 11px; margin-top: -2px; }
+.ck-opts .btn { padding: 5px 10px; font-size: 12.5px; min-height: 32px; }
+.ck-qmove { margin-top: 8px; padding-top: 8px; gap: 6px; }
+.ck-qmove .btn--small { padding: 5px 10px; font-size: 12.5px; min-height: 32px; border-radius: 8px; }
+.ck-qmove__label { font-size: 12px; }
+
+/* --- mobile compaction: smaller cards, fields sit side by side --- */
+@media (max-width: 720px) {
+  .ck-card { padding: 12px 12px; border-radius: 14px; margin-bottom: 10px; }
+
+  /* Hint and Section share a row; Question gets the full width. */
+  .ck-head__fields { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+  .ck-head__fields .field--grow:first-child { flex: 1 1 100%; }   /* Question */
+  .ck-head__fields .field--grow:nth-child(2) { flex: 1 1 55%; width: auto; }  /* Hint */
+  .ck-head__fields .field:nth-child(3) { flex: 1 1 35%; width: auto; }        /* Section */
+  .ck-head__fields input { min-height: 38px; padding: 6px 10px; font-size: 14px; border-radius: 9px; }
+  .ck-head__fields .field > span { font-size: 11px; }
+
+  .ck-opt { gap: 5px; margin-bottom: 4px; }
+  .ck-opt__n { width: 22px; height: 22px; font-size: 11px; }
+  .ck-opt__text { min-height: 38px; padding: 6px 10px; font-size: 15px; border-radius: 9px; }
+  .ck-opt__pctinput { width: 56px; min-width: 0; min-height: 38px; padding: 6px 6px; font-size: 14px; border-radius: 9px; }
+  .ck-opt__pct { gap: 2px; font-size: 11px; }
+
+  /* Move answer: three compact buttons on one line. */
+  .ck-opt__move { gap: 4px; }
+  .ck-opt__move .btn--tiny { min-height: 36px; min-width: 36px; padding: 4px 7px; font-size: 12px; border-radius: 8px; }
+
+  .ck-opt__clean-tag { font-size: 10.5px; margin: 1px 0 2px 28px; }
+
+  /* Move question bar: one tidy row instead of a 2x2 grid. */
+  .ck-qmove { display: flex; flex-wrap: nowrap; gap: 5px; margin-top: 8px; padding-top: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .ck-qmove__label { display: none; }
+  .ck-qmove .ck-move-btn { flex: 1 1 auto; width: auto; min-height: 38px; padding: 5px 8px; font-size: 12px; border-radius: 8px; white-space: nowrap; }
+  .ck-qmove .btn--danger { grid-column: auto; }
+
+  .ck-clean-note { font-size: 11px; margin: 6px 0 2px; padding: 4px 9px; }
+  .ck-zero-note { font-size: 11px; margin: 6px 0 2px; padding: 4px 9px; }
+  .ck-opts { margin: 6px 0; }
+  .ck-opts .btn { min-height: 34px; font-size: 12.5px; padding: 4px 10px; }
+  .ck-qhead { margin-bottom: 6px; }
+}

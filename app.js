@@ -433,20 +433,47 @@ function showApp() {
 // ---------------------------------------------------------------------------
 // Tabs
 // ---------------------------------------------------------------------------
-document.querySelectorAll(".tab-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("tab-btn--active"));
-    document.querySelectorAll(".tab-panel").forEach((p) => p.hidden = true);
-    btn.classList.add("tab-btn--active");
-    el(btn.dataset.tab).hidden = false;
-
-    // Read when it is first looked at, not on sign-in: these are eight reads
-    // the catalog screen has no use for.
-    if (btn.dataset.tab === "tab-pricing" && !pricingDocs) loadPricingRules();
-    if (btn.dataset.tab === "tab-checklist" && !checklistQuestions) {
-      loadChecklist();
-    }
+// One activation path for both the top tabs (desktop) and the bottom nav
+// (mobile) — they are two views of the same six panels.
+function activateTab(tabId, sourceBtn) {
+  document.querySelectorAll(".tab-btn, .bottom-nav__btn").forEach((b) => {
+    const on = b.dataset.tab === tabId;
+    b.classList.toggle("tab-btn--active", on && b.classList.contains("tab-btn"));
+    b.classList.toggle("bottom-nav__btn--active", on && b.classList.contains("bottom-nav__btn"));
+    b.setAttribute("aria-selected", String(on));
   });
+  document.querySelectorAll(".tab-panel").forEach((p) => p.hidden = true);
+  el(tabId).hidden = false;
+  // On a phone the top tabs scroll sideways — bring the tapped one into view
+  // so the next tab is discoverable without hunting for the edge.
+  if (sourceBtn && sourceBtn.classList.contains("tab-btn")) {
+    sourceBtn.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
+  }
+  // The FAB only makes sense on the Catalog tab.
+  const fab = el("fab-add-model");
+  if (fab) fab.hidden = tabId !== "tab-catalog";
+
+  // Read when it is first looked at, not on sign-in: these are eight reads
+  // the catalog screen has no use for.
+  if (tabId === "tab-pricing" && !pricingDocs) loadPricingRules();
+  if (tabId === "tab-checklist" && !checklistQuestions) {
+    loadChecklist();
+  }
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+document.querySelectorAll(".tab-btn, .bottom-nav__btn").forEach((btn) => {
+  btn.addEventListener("click", () => activateTab(btn.dataset.tab, btn));
+});
+
+// Mobile FAB — same action as the toolbar's "+ Add model".
+el("fab-add-model")?.addEventListener("click", () => {
+  const brandId = currentBrandId();
+  if (!brandId) {
+    toast("Choose or enter a brand first.", "error");
+    return;
+  }
+  openModelForm(brandId, null);
 });
 
 // ---------------------------------------------------------------------------
@@ -1332,7 +1359,7 @@ function renderOrders(orders) {
       </td>
       <td data-label="Payout">${money(o.finalPayout)}</td>
       <td class="cell-status-badge">
-        <span class="badge badge--${o.status === "paid" ? "success" : "warning"}">
+        <span class="badge badge--status-${escapeHtml(o.status || "placed")}">
           ${escapeHtml(ORDER_STAGES.find((s) => s.value === o.status)?.label || o.status || "placed")}
         </span>
       </td>
@@ -2051,11 +2078,11 @@ function optionRow(d, o, i, base) {
   const move = `
     <div class="rule-row__move">
       <button class="btn btn--tiny" data-act="up" data-index="${i}" type="button"
-              ${i === 0 ? "disabled" : ""} title="Move up">↑</button>
+              ${i === 0 ? "disabled" : ""} aria-label="Move option up">↑ Up</button>
       <button class="btn btn--tiny" data-act="down" data-index="${i}" type="button"
-              ${i === d.options.length - 1 ? "disabled" : ""} title="Move down">↓</button>
+              ${i === d.options.length - 1 ? "disabled" : ""} aria-label="Move option down">↓ Down</button>
       <button class="btn btn--tiny btn--danger" data-act="delete" data-index="${i}"
-              type="button" title="Remove this option">✕</button>
+              type="button" aria-label="Delete this option">✕</button>
     </div>`;
 
   const percentField = `
@@ -2843,67 +2870,77 @@ const STANDARD_CHECKLIST = [
 ];
 
 function checklistCard(q, i, total) {
+  const optTotal = (q.options || []).length;
   const rows = (q.options || [])
     .map(
       (opt, j) => `
-      <div class="ck-opt">
-        <span class="ck-opt__n${j === 0 ? " ck-opt__n--clean" : ""}">${j + 1}</span>
+      <div class="ck-opt${j === 0 ? " ck-opt--clean" : ""}" data-ck-opt-row="${j}">
+        <span class="ck-opt__n${j === 0 ? " ck-opt__n--clean" : ""}" title="Answer ${j + 1} of ${optTotal}">${j + 1}<small>/${optTotal}</small></span>
         <input type="text" class="ck-opt__text" data-q="${i}" data-opt="${j}"
                value="${escapeHtml(optLabel(opt))}"
                placeholder="${j === 0 ? "The clean answer — e.g. No scratch" : "What the agent found"}" />
         <span class="ck-opt__pct">
-          <input type="number" min="0" max="100" step="1" inputmode="numeric"
-                 class="ck-opt__pctinput" data-q="${i}" data-pct="${j}"
+          <input type="number" min="1" max="100" step="1" inputmode="numeric"
+                 class="ck-opt__pctinput${j > 0 && !(optPercent(opt) > 0) ? " ck-pct--zero" : ""}" data-q="${i}" data-pct="${j}"
                  value="${optPercent(opt)}"
-                 ${j === 0 ? 'disabled title="The clean answer takes nothing off"' : 'title="Taken off the quoted payout"'} />
+                 ${j === 0 ? 'disabled title="The clean answer takes nothing off"' : 'title="Taken off the quoted payout — every non-clean answer needs a % above 0"'} />
           <span>%</span>
         </span>
-        <button class="btn btn--tiny" type="button" data-ck="opt-up" data-q="${i}" data-opt="${j}"
-                ${j === 0 ? "disabled" : ""} title="Move up">↑</button>
-        <button class="btn btn--tiny" type="button" data-ck="opt-down" data-q="${i}" data-opt="${j}"
-                ${j === (q.options.length - 1) ? "disabled" : ""} title="Move down">↓</button>
-        <button class="btn btn--tiny btn--danger" type="button" data-ck="opt-del" data-q="${i}" data-opt="${j}"
-                title="Remove this answer">✕</button>
+        <span class="ck-opt__move" role="group" aria-label="Move answer ${j + 1} of ${optTotal}">
+          <button class="btn btn--tiny ck-move-btn" type="button" data-ck="opt-up" data-q="${i}" data-opt="${j}"
+                  ${j === 0 ? "disabled" : ""} aria-label="Move answer ${j + 1} up">↑ Up</button>
+          <button class="btn btn--tiny ck-move-btn" type="button" data-ck="opt-down" data-q="${i}" data-opt="${j}"
+                  ${j === optTotal - 1 ? "disabled" : ""} aria-label="Move answer ${j + 1} down">↓ Down</button>
+          <button class="btn btn--tiny btn--danger ck-move-btn" type="button" data-ck="opt-del" data-q="${i}" data-opt="${j}"
+                  aria-label="Delete answer ${j + 1}">✕</button>
+        </span>
+        ${j === 0 ? '<span class="ck-opt__clean-tag">✓ Clean — takes nothing off</span>' : ""}
       </div>`
     )
     .join("");
 
   return `
     <section class="card ck-card" data-ck-q="${i}">
-      <div class="rule-head">
-        <div class="ck-head__fields">
-          <label class="field field--tight field--grow">
-            <span>Question the agent is asked</span>
-            <input type="text" data-ck-field="question" data-q="${i}"
-                   value="${escapeHtml(String(q.question || ""))}"
-                   placeholder="e.g. Are there any dents on the phone body?" />
-          </label>
-          <label class="field field--tight field--grow">
-            <span>Smaller line underneath</span>
-            <input type="text" data-ck-field="hint" data-q="${i}"
-                   value="${escapeHtml(String(q.hint || ""))}"
-                   placeholder="Where to look" />
-          </label>
-          <label class="field field--tight">
-            <span>Section</span>
-            <input type="text" data-ck-field="group" data-q="${i}"
-                   list="ck-groups" value="${escapeHtml(String(q.group || ""))}"
-                   placeholder="e.g. Screen condition" />
-          </label>
-        </div>
-        <div class="rule-head__actions">
-          <button class="btn btn--tiny" type="button" data-ck="q-up" data-q="${i}"
-                  ${i === 0 ? "disabled" : ""} title="Move question up">↑</button>
-          <button class="btn btn--tiny" type="button" data-ck="q-down" data-q="${i}"
-                  ${i === total - 1 ? "disabled" : ""} title="Move question down">↓</button>
-          <button class="btn btn--tiny btn--danger" type="button" data-ck="q-del" data-q="${i}"
-                  title="Remove this question">✕</button>
-        </div>
+      <div class="ck-qhead">
+        <span class="ck-qnum">Question ${i + 1} of ${total}</span>
+        <span class="ck-qid"><code>${escapeHtml(String(q.id || "(no id)"))}</code></span>
       </div>
-      <p class="cell-sub"><code>${escapeHtml(String(q.id || "(no id)"))}</code> ·
-        answer 1 is the clean one</p>
+      <div class="ck-head__fields">
+        <label class="field field--tight field--grow">
+          <span>Question the agent is asked</span>
+          <input type="text" data-ck-field="question" data-q="${i}"
+                 value="${escapeHtml(String(q.question || ""))}"
+                 placeholder="e.g. Are there any dents on the phone body?" />
+        </label>
+        <label class="field field--tight field--grow">
+          <span>Smaller line underneath</span>
+          <input type="text" data-ck-field="hint" data-q="${i}"
+                 value="${escapeHtml(String(q.hint || ""))}"
+                 placeholder="Where to look" />
+        </label>
+        <label class="field field--tight">
+          <span>Section</span>
+          <input type="text" data-ck-field="group" data-q="${i}"
+                 list="ck-groups" value="${escapeHtml(String(q.group || ""))}"
+                 placeholder="e.g. Screen condition" />
+        </label>
+      </div>
+      <p class="ck-clean-note">Answer 1 is always the clean one (green). Moving an answer to the top makes <em>it</em> the clean one.</p>
+      ${(() => {
+        const zeros = (q.options || []).filter((o, j) => j > 0 && !(optPercent(o) > 0)).length;
+        return zeros ? `<p class="ck-zero-note">⚠ ${zeros} answer${zeros === 1 ? "" : "s"} still at 0% — every non-clean answer needs a % before you can save.</p>` : "";
+      })()}
       <div class="ck-opts">${rows || `<p class="empty">No answers yet.</p>`}</div>
-      <button class="btn btn--small btn--ghost" type="button" data-ck="opt-add" data-q="${i}">+ Answer</button>
+      <button class="btn btn--small btn--ghost" type="button" data-ck="opt-add" data-q="${i}">+ Add answer</button>
+      <div class="ck-qmove" role="group" aria-label="Move question ${i + 1} of ${total}">
+        <span class="ck-qmove__label">Move this question:</span>
+        <button class="btn btn--small ck-move-btn" type="button" data-ck="q-up" data-q="${i}"
+                ${i === 0 ? "disabled" : ""} aria-label="Move question ${i + 1} up">↑ Move up</button>
+        <button class="btn btn--small ck-move-btn" type="button" data-ck="q-down" data-q="${i}"
+                ${i === total - 1 ? "disabled" : ""} aria-label="Move question ${i + 1} down">↓ Move down</button>
+        <button class="btn btn--small btn--danger ck-move-btn" type="button" data-ck="q-del" data-q="${i}"
+                aria-label="Delete question ${i + 1}">✕ Delete question</button>
+      </div>
     </section>`;
 }
 
@@ -3021,6 +3058,18 @@ el("checklist-add")?.addEventListener("click", () => {
   });
   markChecklistDirty();
   renderChecklist();
+  // New questions land at the end — scroll down to the new card and flash
+  // it so it is obvious it was added, then put the cursor in its question
+  // box ready to type.
+  const newIndex = checklistQuestions.length - 1;
+  const card = document.querySelector(`[data-ck-q="${newIndex}"]`);
+  if (card) {
+    card.scrollIntoView({ block: "center", behavior: "smooth" });
+    card.classList.add("ck-flash");
+    setTimeout(() => card.classList.remove("ck-flash"), 1400);
+    const input = card.querySelector('[data-ck-field="question"]');
+    if (input) setTimeout(() => input.focus({ preventScroll: true }), 350);
+  }
 });
 
 el("checklist-seed")?.addEventListener("click", () => {
@@ -3038,9 +3087,16 @@ el("checklist-seed")?.addEventListener("click", () => {
     toast("Every standard question is already here.", "success");
     return;
   }
+  const firstNew = checklistQuestions.length - added;
   markChecklistDirty();
   renderChecklist();
-  toast(`Added ${added} question${added === 1 ? "" : "s"} — edit, then Save.`, "success");
+  toast(`Added ${added} question${added === 1 ? "" : "s"} — now set a % for every answer except the clean one, then Save.`, "success");
+  const seeded = document.querySelector(`[data-ck-q="${firstNew}"]`);
+  if (seeded) {
+    seeded.scrollIntoView({ block: "center", behavior: "smooth" });
+    seeded.classList.add("ck-flash");
+    setTimeout(() => seeded.classList.remove("ck-flash"), 1400);
+  };
 });
 
 el("checklist-list")?.addEventListener("input", (e) => {
@@ -3064,6 +3120,8 @@ el("checklist-list")?.addEventListener("input", (e) => {
     const n = Math.round(Number(input.value));
     q.options[Number(input.dataset.pct)].percent =
       Number.isFinite(n) && n > 0 ? Math.min(100, n) : 0;
+    // Flag it live: a non-clean answer at 0% cannot be saved.
+    input.classList.toggle("ck-pct--zero", !(q.options[Number(input.dataset.pct)].percent > 0));
   }
   markChecklistDirty();
 });
@@ -3081,33 +3139,62 @@ el("checklist-list")?.addEventListener("click", (e) => {
     [arr[a], arr[b]] = [arr[b], arr[a]];
   };
 
+  // Where the moved item lands, so it can be found again after the redraw.
+  let focusSel = null;
+
   switch (btn.dataset.ck) {
-    case "opt-add":
+    case "opt-add": {
       q.options.push({ label: "", percent: 0 });
+      focusSel = `[data-ck-q="${qi}"] [data-ck-opt-row="${q.options.length - 1}"]`;
       break;
-    case "opt-del":
+    }
+    case "opt-del": {
+      const name = optLabel(q.options[oi]) || `answer ${oi + 1}`;
+      if (!confirm(`Delete answer "${name}" from question ${qi + 1}?\n\nNothing is written until you press Save.`)) return;
       q.options.splice(oi, 1);
       break;
+    }
     case "opt-up":
       swap(q.options, oi, oi - 1);
+      focusSel = `[data-ck-q="${qi}"] [data-ck-opt-row="${oi - 1}"]`;
       break;
     case "opt-down":
       swap(q.options, oi, oi + 1);
+      focusSel = `[data-ck-q="${qi}"] [data-ck-opt-row="${oi + 1}"]`;
       break;
     case "q-up":
       swap(checklistQuestions, qi, qi - 1);
+      focusSel = `[data-ck-q="${qi - 1}"]`;
       break;
     case "q-down":
       swap(checklistQuestions, qi, qi + 1);
+      focusSel = `[data-ck-q="${qi + 1}"]`;
       break;
-    case "q-del":
+    case "q-del": {
+      const name = String(q.question || `question ${qi + 1}`).trim();
+      if (!confirm(`Delete question "${name}" and its ${(q.options || []).length} answers?\n\nNothing is written until you press Save.`)) return;
       checklistQuestions.splice(qi, 1);
       break;
+    }
     default:
       return;
   }
   markChecklistDirty();
   renderChecklist();
+  // The list is rebuilt from scratch on every move — without this the page
+  // jumps to the top and the moved item is lost. Bring it back into view
+  // and flash it so the eye can follow where it went.
+  if (focusSel) {
+    const target = document.querySelector(focusSel);
+    if (target) {
+      target.scrollIntoView({ block: "center", behavior: "smooth" });
+      target.classList.add("ck-flash");
+      setTimeout(() => target.classList.remove("ck-flash"), 1400);
+      // A newly added answer is empty — put the cursor straight in it.
+      const input = target.querySelector(".ck-opt__text");
+      if (input) setTimeout(() => input.focus({ preventScroll: true }), 350);
+    }
+  }
 });
 
 el("checklist-save")?.addEventListener("click", async () => {
@@ -3141,6 +3228,32 @@ el("checklist-save")?.addEventListener("click", async () => {
   const ids = cleaned.map((q) => q.id);
   if (new Set(ids).size !== ids.length) {
     toast("Two questions share an id — rename one.", "error");
+    return;
+  }
+  // A non-clean answer at 0% means that fault is free — the seller pays
+  // nothing for it. That is never what the shop means, so it cannot be
+  // saved by accident: jump to the first one and make it impossible to miss.
+  const zeroPriced = [];
+  cleaned.forEach((q, qi) => {
+    q.options.forEach((o, oi) => {
+      if (oi > 0 && !(o.percent > 0)) zeroPriced.push({ qi, oi, label: o.label });
+    });
+  });
+  if (zeroPriced.length) {
+    const first = zeroPriced[0];
+    toast(
+      `Cannot save: "${first.label}" in Question ${first.qi + 1} is still 0%. ` +
+        `Every non-clean answer needs a %. (${zeroPriced.length} still at 0%)`,
+      "error"
+    );
+    const card = document.querySelector(`[data-ck-q="${first.qi}"]`);
+    const bad = card?.querySelector(`[data-ck-opt-row="${first.oi}"] .ck-opt__pctinput`);
+    if (card) {
+      card.scrollIntoView({ block: "center", behavior: "smooth" });
+      card.classList.add("ck-flash");
+      setTimeout(() => card.classList.remove("ck-flash"), 1400);
+    }
+    if (bad) setTimeout(() => bad.focus({ preventScroll: true }), 350);
     return;
   }
 
@@ -4345,12 +4458,23 @@ function gradedChecksBlock(order, questions) {
         head = `<div class="check-group">${escapeHtml(g)}</div>`;
       }
 
+      const quoted = Number(order.finalPayout) || 0;
       const opts = (q.options || [])
         .map((opt, j) => {
           const label = optLabel(opt);
           const pct = optPercent(opt);
           const found = CHECK_IMAGES[q.id]?.[j];
           const pics = (Array.isArray(found) ? found : found ? [found] : []).filter(Boolean);
+          // Every answer shows its price so the agent can see what each
+          // choice costs before tapping — % of the quoted payout, plus the
+          // rupees it works out to. Clean (and unpriced) answers say 0%.
+          const moneyOff = pct > 0 && quoted ? money(Math.round((quoted * pct) / 100)) : "";
+          const pricePill =
+            j === 0
+              ? `<span class="ck-pick__pct ck-pick__pct--clean">0%</span>`
+              : pct > 0
+                ? `<span class="ck-pick__pct">\u2212${pct}%${moneyOff ? `<span class="ck-pick__money">${moneyOff}</span>` : ""}</span>`
+                : `<span class="ck-pick__pct ck-pick__pct--zero">0%</span>`;
           return `
           <button type="button"
                   class="ck-pick${chosen === label ? " is-on" : ""}${j === 0 ? " ck-pick--clean" : ""}${pics.length ? " ck-pick--pic" : ""}"
@@ -4366,7 +4490,7 @@ function gradedChecksBlock(order, questions) {
               : ""}
             <span class="ck-pick__text">
               <span class="ck-pick__label">${escapeHtml(label)}</span>
-              ${pct > 0 ? `<span class="ck-pick__pct">\u2212${pct}%</span>` : ""}
+              ${pricePill}
             </span>
           </button>`;
         })
@@ -4483,11 +4607,13 @@ function recordedChecksBlock(order) {
       }
 
       const q = configured.find((x) => x.id === id);
+      const recordedOpt = q ? (q.options || []).find((o) => optLabel(o) === value) : null;
+      const recordedPct = recordedOpt ? optPercent(recordedOpt) : 0;
       return {
         id,
         group: q?.group || "",
         what: checklistLabel(id),
-        said: value,
+        said: recordedPct > 0 ? `${value} (\u2212${recordedPct}%)` : value,
         // Without the question we cannot tell its clean answer from its
         // worst, so it is shown plainly rather than guessed at.
         fault: q ? isFinding(q, value) : false,
@@ -4875,7 +5001,7 @@ function stageLabel(o) {
 }
 
 function stageBadge(o) {
-  return `<span class="badge badge--${o.status === "paid" ? "success" : "warning"}">${escapeHtml(stageLabel(o))}</span>`;
+  return `<span class="badge badge--status-${escapeHtml(o.status || "placed")}">${escapeHtml(stageLabel(o))}</span>`;
 }
 
 // One row of the list. Only what decides which job to open: the phone, the

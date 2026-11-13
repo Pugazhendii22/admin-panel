@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=8" />
 </head>
 <body>
 
@@ -70,19 +70,16 @@
     </header>
 
     <nav class="tabs">
-      <button class="tab-btn tab-btn--active" data-tab="tab-catalog" data-admin-only="1">Catalog</button>
-      <button class="tab-btn" data-tab="tab-orders" data-admin-only="1">Orders</button>
-      <button class="tab-btn" data-tab="tab-pricing" data-admin-only="1">
-        <span class="tab-label-long">Pricing rules</span>
+      <button class="tab-btn tab-btn--active" data-tab="tab-catalog" data-admin-only="1" aria-selected="true"><span class="tab-icon" aria-hidden="true">📦</span>Catalog</button>
+      <button class="tab-btn" data-tab="tab-orders" data-admin-only="1" aria-selected="false"><span class="tab-icon" aria-hidden="true">🧾</span>Orders</button>
+      <button class="tab-btn" data-tab="tab-pricing" data-admin-only="1" aria-selected="false"><span class="tab-icon" aria-hidden="true">₹</span><span class="tab-label-long">Pricing rules</span>
         <span class="tab-label-short">Pricing</span>
       </button>
-      <button class="tab-btn" data-tab="tab-checklist" data-admin-only="1">
-        <span class="tab-label-long">Inspection checklist</span>
+      <button class="tab-btn" data-tab="tab-checklist" data-admin-only="1" aria-selected="false"><span class="tab-icon" aria-hidden="true">✅</span><span class="tab-label-long">Inspection checklist</span>
         <span class="tab-label-short">Checklist</span>
       </button>
-      <button class="tab-btn" data-tab="tab-staff" data-admin-only="1">Staff</button>
-      <button class="tab-btn" data-tab="tab-listings" data-admin-only="1">
-        <span class="tab-label-long">Second-hand listings</span>
+      <button class="tab-btn" data-tab="tab-staff" data-admin-only="1" aria-selected="false"><span class="tab-icon" aria-hidden="true">👥</span>Staff</button>
+      <button class="tab-btn" data-tab="tab-listings" data-admin-only="1" aria-selected="false"><span class="tab-icon" aria-hidden="true">🏷️</span><span class="tab-label-long">Second-hand listings</span>
         <span class="tab-label-short">Listings</span>
       </button>
     </nav>
@@ -290,6 +287,19 @@
       </section>
 
     </main>
+    <!-- Mobile bottom navigation (shown under 720px only — see style.css).
+         Mirrors the top tabs; both are wired to the same activateTab() in app.js. -->
+    <nav class="bottom-nav" data-admin-only="1" aria-label="Sections">
+      <button class="bottom-nav__btn bottom-nav__btn--active" data-tab="tab-catalog" aria-selected="true"><span class="bottom-nav__icon" aria-hidden="true">📦</span><span>Catalog</span></button>
+      <button class="bottom-nav__btn" data-tab="tab-orders" aria-selected="false"><span class="bottom-nav__icon" aria-hidden="true">🧾</span><span>Orders</span></button>
+      <button class="bottom-nav__btn" data-tab="tab-pricing" aria-selected="false"><span class="bottom-nav__icon" aria-hidden="true">₹</span><span>Pricing</span></button>
+      <button class="bottom-nav__btn" data-tab="tab-checklist" aria-selected="false"><span class="bottom-nav__icon" aria-hidden="true">✅</span><span>Checklist</span></button>
+      <button class="bottom-nav__btn" data-tab="tab-staff" aria-selected="false"><span class="bottom-nav__icon" aria-hidden="true">👥</span><span>Staff</span></button>
+      <button class="bottom-nav__btn" data-tab="tab-listings" aria-selected="false"><span class="bottom-nav__icon" aria-hidden="true">🏷️</span><span>Listings</span></button>
+    </nav>
+
+    <!-- Mobile FAB: quick "Add model" on the Catalog tab (mobile only). -->
+    <button id="fab-add-model" class="fab" data-admin-only="1" aria-label="Add model" title="Add model">+</button>
   </div>
 
   <!-- ===================== Add / edit model ===================== -->
@@ -499,6 +509,6 @@
 
   <div id="toast-host" class="toast-host"></div>
 
-  <script type="module" src="app.js"></script>
+  <script type="module" src="app.js?v=8"></script>
 </body>
 </html>
