@@ -4254,6 +4254,83 @@ function gradedTally(questions, answers) {
   return { failed: found, passed: clean, left: questions.length - found - clean };
 }
 
+// Pictures for each answer of a checklist question, so someone who has never
+// inspected a phone can match what is in their hand to what is on the screen.
+//
+// Keyed by question id, then by the answer's position — the same position the
+// editor shows, where answer 1 is the clean one. Position rather than wording,
+// because staff reword answers freely and a picture should not vanish when
+// someone fixes a typo. A question that is absent, or an answer past the end
+// of its list, simply shows text, exactly as before.
+//
+// Each answer has two pictures: the whole phone, so you see where on it to
+// look, then a close-up of the same spot, so you see what the damage looks
+// like. A thin red dashed ring marks the damage and is part of the picture.
+// Files sit in `checks/`; the whole-phone picture always comes first.
+const CHECK_IMAGES = {
+  screen_cracks: [
+    ["checks/screen_cracks_1_whole.jpg", "checks/screen_cracks_1_zoom.jpg"], // No cracks
+    ["checks/screen_cracks_2_whole.jpg", "checks/screen_cracks_2_zoom.jpg"], // Hairline crack under 1cm
+    ["checks/screen_cracks_3_whole.jpg", "checks/screen_cracks_3_zoom.jpg"], // Crack under 3cm, touch working
+    ["checks/screen_cracks_4_whole.jpg", "checks/screen_cracks_4_zoom.jpg"], // Multiple cracks or touch not working
+  ],
+  // The display is plain white here, because spots and patches only show up on
+  // a lit screen. The spots sit in several places, as they do on a real phone,
+  // and each group has its own ring.
+  screen_spots: [
+    ["checks/screen_spots_1_whole.jpg", "checks/screen_spots_1_zoom.jpg"], // No spots
+    ["checks/screen_spots_2_whole.jpg", "checks/screen_spots_2_zoom.jpg"], // Up to 3 spots of 2mm / 1 of 3mm
+    ["checks/screen_spots_3_whole.jpg", "checks/screen_spots_3_zoom.jpg"], // More than 3 spots / patches
+    ["checks/screen_spots_4_whole.jpg", "checks/screen_spots_4_zoom.jpg"], // Coloured spots or patches
+  ],
+  // Lines show on a lit screen too. Each line, or pair of lines, is boxed.
+  screen_lines: [
+    ["checks/screen_lines_1_whole.jpg", "checks/screen_lines_1_zoom.jpg"], // No lines on screen
+    ["checks/screen_lines_2_whole.jpg", "checks/screen_lines_2_zoom.jpg"], // Lines on screen
+  ],
+  // Discolouration is shown on a lit white screen, light against dark so the
+  // two grades can be told apart, and a fading screen as a washed-out tint with
+  // a ghost imprint across the whole display.
+  screen_discolour: [
+    ["checks/screen_discolour_1_whole.jpg", "checks/screen_discolour_1_zoom.jpg"], // No discolouration
+    ["checks/screen_discolour_2_whole.jpg", "checks/screen_discolour_2_zoom.jpg"], // Light tint along the edges
+    ["checks/screen_discolour_3_whole.jpg", "checks/screen_discolour_3_zoom.jpg"], // Dark stain along the edges
+    ["checks/screen_discolour_4_whole.jpg", "checks/screen_discolour_4_zoom.jpg"], // Screen fading, full-screen imprint
+  ],
+  // The back of the phone, matte dark grey on white with no shadow. Scratches
+  // are spread over several places, each group ringed, and the paint answers
+  // show bare light-grey metal where the paint has gone.
+  body_scratches: [
+    ["checks/body_scratches_1_whole.jpg", "checks/body_scratches_1_zoom.jpg"], // No scratch
+    ["checks/body_scratches_2_whole.jpg", "checks/body_scratches_2_zoom.jpg"], // Up to 5 scratches under 1cm
+    ["checks/body_scratches_3_whole.jpg", "checks/body_scratches_3_zoom.jpg"], // Up to 15 of 1cm / up to 5 of 3cm
+    ["checks/body_scratches_4_whole.jpg", "checks/body_scratches_4_zoom.jpg"], // More than 15, or cover mark
+    ["checks/body_scratches_5_whole.jpg", "checks/body_scratches_5_zoom.jpg"], // Minor paint peel-off or bubble
+    ["checks/body_scratches_6_whole.jpg", "checks/body_scratches_6_zoom.jpg"], // Major paint peel-off or bubble
+  ],
+  // A clean back is the same picture in every body question, so "no dents" and
+  // "no defect" reuse the clean files made for the scratches question.
+  body_dents: [
+    ["checks/body_dents_1_whole.jpg", "checks/body_dents_1_zoom.jpg"], // No dents
+    ["checks/body_dents_2_whole.jpg", "checks/body_dents_2_zoom.jpg"], // 1-2 dents
+    ["checks/body_dents_3_whole.jpg", "checks/body_dents_3_zoom.jpg"], // More than 2, or a minor crack on the body
+  ],
+  body_panel: [
+    ["checks/body_panel_1_whole.jpg", "checks/body_panel_1_zoom.jpg"], // No defect
+    ["checks/body_panel_2_whole.jpg", "checks/body_panel_2_zoom.jpg"], // Loose panel or visible pasting
+    ["checks/body_panel_3_whole.jpg", "checks/body_panel_3_zoom.jpg"], // Missing panel
+    ["checks/body_panel_4_whole.jpg", "checks/body_panel_4_zoom.jpg"], // Cracked and broken panel
+    ["checks/body_panel_5_whole.jpg", "checks/body_panel_5_zoom.jpg"], // Glass back panel damaged
+  ],
+  // Bent is shown from the back, with the phone bowing along its length. A
+  // side view would read better, but the picture tool would not make one.
+  body_bent: [
+    ["checks/body_bent_1_whole.jpg", "checks/body_bent_1_zoom.jpg"], // Not bent
+    ["checks/body_bent_2_whole.jpg", "checks/body_bent_2_zoom.jpg"], // Slightly bent
+    ["checks/body_bent_3_whole.jpg", "checks/body_bent_3_zoom.jpg"], // Visibly bent or twisted
+  ],
+};
+
 function gradedChecksBlock(order, questions) {
   const answers = answersFor(order.id);
   let group = "";
@@ -4272,13 +4349,25 @@ function gradedChecksBlock(order, questions) {
         .map((opt, j) => {
           const label = optLabel(opt);
           const pct = optPercent(opt);
+          const found = CHECK_IMAGES[q.id]?.[j];
+          const pics = (Array.isArray(found) ? found : found ? [found] : []).filter(Boolean);
           return `
           <button type="button"
-                  class="ck-pick${chosen === label ? " is-on" : ""}${j === 0 ? " ck-pick--clean" : ""}"
+                  class="ck-pick${chosen === label ? " is-on" : ""}${j === 0 ? " ck-pick--clean" : ""}${pics.length ? " ck-pick--pic" : ""}"
                   aria-pressed="${chosen === label}"
                   data-ck-pick="${escapeHtml(order.id)}|${escapeHtml(q.id)}|${escapeHtml(String(j))}">
-            ${escapeHtml(label)}
-            ${pct > 0 ? `<span class="ck-pick__pct">\u2212${pct}%</span>` : ""}
+            ${pics.length
+              ? `<span class="ck-pick__pics">${pics
+                  .map(
+                    (src) =>
+                      `<img class="ck-pick__img" src="${escapeHtml(src)}" alt="" loading="lazy" onerror="this.remove()">`
+                  )
+                  .join("")}</span>`
+              : ""}
+            <span class="ck-pick__text">
+              <span class="ck-pick__label">${escapeHtml(label)}</span>
+              ${pct > 0 ? `<span class="ck-pick__pct">\u2212${pct}%</span>` : ""}
+            </span>
           </button>`;
         })
         .join("");
