@@ -1,0 +1,13 @@
+# Local environment secrets (never commit)
+.env
+.env.local
+.env.*.local
+
+# Generated at build time by scripts/build-env.mjs from env vars
+firebase-config.js
+firebase-messaging-sw.js
+
+# Tooling
+.vercel
+node_modules
+.DS_Store

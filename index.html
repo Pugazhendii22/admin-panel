@@ -1,182 +1,315 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>French Mobiles — Admin</title>
-
-  <link rel="manifest" href="manifest.json" />
-  <meta name="theme-color" content="#32CD32" />
-  <link rel="icon" href="icons/favicon.png" />
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#FFFFFF" id="meta-theme-color" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="FM Admin" />
-  <meta name="mobile-web-app-capable" content="yes" />
-
+  <title>French Mobiles — Admin</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" href="icons/favicon.png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" />
-  <link rel="stylesheet" href="style.css?v=9" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script>
+    // Apply saved or system theme before first paint so dark mode never flashes white.
+    (function () {
+      try {
+        var saved = localStorage.getItem("fm_admin_theme");
+        var dark = saved === "dark" || (!saved && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+        var meta = document.getElementById("meta-theme-color");
+        if (meta) meta.setAttribute("content", dark ? "#0B1120" : "#FFFFFF");
+      } catch (_) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="style.css?v=10" />
 </head>
 <body>
 
-  <!-- ===================== Login ===================== -->
-  <div id="login-screen" class="login-screen">
-    <form id="login-form" class="login-card">
+  <!-- ===================== LOGIN SCREEN ===================== -->
+  <main id="login-screen" class="login-screen">
+    <button id="login-theme-toggle" type="button" class="icon-btn login-theme-btn" aria-label="Toggle color theme" title="Toggle theme (T)">
+      <svg class="ui-icon ui-icon--sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      <svg class="ui-icon ui-icon--moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+    </button>
+
+    <form id="login-form" class="card login-card" novalidate>
       <div class="login-brand">
-        <div class="login-logo">FM</div>
+        <div class="login-brand-top">
+          <div class="login-logo">FM</div>
+          <span class="login-env-pill">Operations Console</span>
+        </div>
         <h1>French Mobiles</h1>
-        <p class="login-sub">Admin</p>
+        <p class="login-sub">Trade-in pricing, live orders, and doorstep inspections in one place.</p>
+        <ul class="login-pillars" aria-hidden="true">
+          <li>
+            <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>
+            <span>Catalog &amp; storage variant pricing</span>
+          </li>
+          <li>
+            <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M8 7h8M8 11h8M8 15h5"/></svg>
+            <span>Live buyback order dispatch</span>
+          </li>
+          <li>
+            <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="3"/><path d="m9 12 2 2 4-4"/></svg>
+            <span>Guided doorstep grading flow</span>
+          </li>
+        </ul>
       </div>
 
-      <p id="login-error" class="login-error" hidden></p>
+      <div class="login-form-head">
+        <h2>Sign in</h2>
+        <p>Use your French Mobiles admin or inspector credentials.</p>
+      </div>
 
       <label class="field">
         <span>Email</span>
-        <input id="login-email" type="email" required autocomplete="username"
-               inputmode="email" autocapitalize="none" autocorrect="off"
-               placeholder="admin@yourshop.com" />
+        <input id="login-email" type="email" autocomplete="username" required placeholder="admin@yourshop.com" />
       </label>
 
       <div class="field">
-        <label for="login-password"><span>Password</span></label>
+        <label for="login-password">Password</label>
         <div class="field-with-affix">
-          <input id="login-password" type="password" required autocomplete="current-password" placeholder="••••••••" />
+          <input id="login-password" type="password" autocomplete="current-password" required placeholder="••••••••" />
           <button type="button" id="pwd-toggle" class="pwd-toggle" aria-label="Show password">Show</button>
         </div>
       </div>
 
+      <p id="login-error" class="login-error" hidden></p>
+
       <button id="login-submit" type="submit" class="btn btn--primary btn--full">Sign in</button>
+
+      <!-- Shown only on local/sandbox preview hosts (?demo=1 or localhost/.e2b.app) -->
+      <div id="preview-demo-bar" class="preview-demo-bar" hidden>
+        <div class="preview-demo-bar__label">Interactive preview (no credentials required)</div>
+        <div class="preview-demo-bar__actions">
+          <button type="button" id="demo-admin-btn" class="btn btn--small btn--soft">
+            <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+            Preview Admin
+          </button>
+          <button type="button" id="demo-inspector-btn" class="btn btn--small">
+            <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>
+            Preview Inspector
+          </button>
+        </div>
+      </div>
 
       <p class="login-hint">
         No admin account yet? See <code>README.md</code> in this folder for setup.
       </p>
     </form>
-  </div>
+  </main>
 
-  <!-- ===================== App ===================== -->
-  <div id="app-screen" class="app-screen" hidden>
+  <!-- ===================== APP SHELL ===================== -->
+  <div id="app-screen" hidden>
     <header class="topbar">
       <div class="topbar-brand">
         <div class="login-logo login-logo--sm">FM</div>
-        <span class="topbar-title">French Mobiles Admin</span>
+        <div class="topbar-brand-text">
+          <span class="topbar-title">French Mobiles</span>
+          <span class="topbar-role-pill" id="topbar-role-pill">Admin</span>
+        </div>
       </div>
       <div class="topbar-right">
-        <button id="install-btn" class="install-btn" hidden>Install app</button>
+        <button id="demo-role-switch" type="button" class="btn btn--small demo-pill" hidden title="Switch preview role">
+          <span class="demo-pill__dot" aria-hidden="true"></span>
+          <span class="demo-pill__prefix">Demo · </span><span id="demo-role-label">Inspector</span>
+        </button>
+        <button id="install-btn" class="btn btn--primary btn--small install-btn" hidden>Install app</button>
+        <button id="shortcuts-btn" type="button" class="icon-btn icon-btn--desktop" data-admin-only="1" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">
+          <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="5" rx="2"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M8 13h8"/></svg>
+        </button>
+        <button id="theme-toggle" type="button" class="icon-btn" aria-label="Toggle color theme" aria-pressed="false" title="Toggle theme (T)">
+          <svg class="ui-icon ui-icon--sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+          <svg class="ui-icon ui-icon--moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+        </button>
         <span id="admin-email" class="admin-email"></span>
         <button id="sign-out" class="btn btn--ghost btn--small">Sign out</button>
       </div>
     </header>
 
-    <nav class="tabs">
-      <button class="tab-btn tab-btn--active" data-tab="tab-catalog" data-admin-only="1" aria-selected="true"><span class="tab-icon" aria-hidden="true">📦</span>Catalog</button>
-      <button class="tab-btn" data-tab="tab-orders" data-admin-only="1" aria-selected="false"><span class="tab-icon" aria-hidden="true">🧾</span>Orders</button>
-      <button class="tab-btn" data-tab="tab-pricing" data-admin-only="1" aria-selected="false"><span class="tab-icon" aria-hidden="true">₹</span><span class="tab-label-long">Pricing rules</span>
+    <nav class="tabs" role="tablist" aria-label="Admin sections">
+      <button class="tab-btn tab-btn--active" data-tab="tab-catalog" data-admin-only="1" role="tab" aria-selected="true">
+        <span class="tab-icon" aria-hidden="true"></span>
+        <span class="tab-label-long">Catalog</span>
+        <span class="tab-label-short">Catalog</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-orders" data-admin-only="1" role="tab" aria-selected="false">
+        <span class="tab-icon" aria-hidden="true"></span>
+        <span class="tab-label-long">Orders</span>
+        <span class="tab-label-short">Orders</span>
+        <span id="orders-nav-badge" class="nav-badge" hidden aria-label="Pending orders">0</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-pricing" data-admin-only="1" role="tab" aria-selected="false">
+        <span class="tab-icon" aria-hidden="true"></span>
+        <span class="tab-label-long">Pricing rules</span>
         <span class="tab-label-short">Pricing</span>
       </button>
-      <button class="tab-btn" data-tab="tab-checklist" data-admin-only="1" aria-selected="false"><span class="tab-icon" aria-hidden="true">✅</span><span class="tab-label-long">Inspection checklist</span>
+      <button class="tab-btn" data-tab="tab-checklist" data-admin-only="1" role="tab" aria-selected="false">
+        <span class="tab-icon" aria-hidden="true"></span>
+        <span class="tab-label-long">Inspection checklist</span>
         <span class="tab-label-short">Checklist</span>
       </button>
-      <button class="tab-btn" data-tab="tab-staff" data-admin-only="1" aria-selected="false"><span class="tab-icon" aria-hidden="true">👥</span>Staff</button>
-      <button class="tab-btn" data-tab="tab-listings" data-admin-only="1" aria-selected="false"><span class="tab-icon" aria-hidden="true">🏷️</span><span class="tab-label-long">Second-hand listings</span>
+      <button class="tab-btn" data-tab="tab-staff" data-admin-only="1" role="tab" aria-selected="false">
+        <span class="tab-icon" aria-hidden="true"></span>
+        <span class="tab-label-long">Staff</span>
+        <span class="tab-label-short">Staff</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-listings" data-admin-only="1" role="tab" aria-selected="false">
+        <span class="tab-icon" aria-hidden="true"></span>
+        <span class="tab-label-long">Second-hand listings</span>
         <span class="tab-label-short">Listings</span>
       </button>
     </nav>
 
     <main class="content">
-
-      <!-- ----- Catalog tab ----- -->
+      <!-- ==================== CATALOG TAB ==================== -->
       <section id="tab-catalog" class="tab-panel" data-admin-only="1">
-        <div class="panel-header">
-          <div>
-            <h2>Catalog</h2>
-            <p class="panel-sub">
-              Brands, models and their storage variants. This is what the app's
-              Sell flow reads to price a trade-in.
-            </p>
+        <header class="panel-header">
+          <h2>Catalog</h2>
+          <p class="panel-sub">Brands, models, and storage variants read by the Sell flow to calculate trade-in quotes.</p>
+        </header>
+
+        <div id="catalog-kpis" class="kpi-grid" aria-label="Catalog overview">
+          <div class="kpi-card">
+            <span class="kpi-card__label">Models shown</span>
+            <strong class="kpi-card__value" id="kpi-cat-shown">—</strong>
+            <span class="kpi-card__meta" id="kpi-cat-brand">Active brand</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-card__label">Hidden in app</span>
+            <strong class="kpi-card__value" id="kpi-cat-hidden">—</strong>
+            <span class="kpi-card__meta">Excluded from Sell flow</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-card__label">Series groups</span>
+            <strong class="kpi-card__value" id="kpi-cat-series">—</strong>
+            <span class="kpi-card__meta">Derived automatically</span>
+          </div>
+          <div class="kpi-card kpi-card--accent">
+            <span class="kpi-card__label">Top buyback quote</span>
+            <strong class="kpi-card__value" id="kpi-cat-top">—</strong>
+            <span class="kpi-card__meta" id="kpi-cat-top-model">Across loaded models</span>
           </div>
         </div>
 
-        <div class="toolbar">
+        <div class="toolbar toolbar--catalog">
           <label class="field field--inline">
             <span>Brand</span>
             <select id="brand-select"></select>
           </label>
+
           <label class="field field--inline">
             <span>Series</span>
             <select id="series-select">
               <option value="">All series</option>
             </select>
           </label>
+
           <label class="field field--inline">
             <span>Show</span>
             <select id="visibility-select">
               <option value="visible">Visible in app</option>
-              <option value="hidden">Hidden from app</option>
               <option value="all">All models</option>
+              <option value="hidden">Hidden only</option>
             </select>
           </label>
-          <div id="custom-brand-row" class="field field--inline" hidden>
+
+          <label class="field field--grow">
+            <span>Search</span>
+            <input id="catalog-search" type="search" placeholder="Filter models… (/)" autocomplete="off" />
+          </label>
+
+          <div class="field field--inline" id="custom-brand-row" hidden>
             <label>
-              <span>Brand id</span>
-              <input id="custom-brand-input" type="text" autocapitalize="none"
-                     autocorrect="off" placeholder="e.g. nothing" />
+              <span>Brand ID</span>
+              <input id="custom-brand-input" type="text" placeholder="e.g. honor" />
             </label>
           </div>
-          <button id="add-model-btn" class="btn btn--primary">+ Add model</button>
-          <button id="refresh-btn" class="btn btn--ghost" title="Re-read this brand from the database">↻ Refresh</button>
+
+          <div class="toolbar-actions">
+            <button id="add-model-btn" class="btn btn--primary">
+              <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              Add model
+            </button>
+            <button id="refresh-btn" class="btn" title="Reload this brand from the database (bypasses local cache)">
+              <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+              Refresh
+            </button>
+          </div>
         </div>
 
-        <p id="cache-note" class="cache-note"></p>
+        <div class="cache-bar">
+          <div id="cache-note" class="cache-note"></div>
+          <button id="catalog-clear-filters" type="button" class="link-btn" hidden>Reset filters</button>
+        </div>
 
         <p id="custom-brand-warning" class="warning-note" hidden>
-          ⚠️ This brand id isn't in the app's hardcoded brand list
-          (<code>lib/models/brand_model.dart</code>). Models added here will
-          still show up in the app's search, but not when someone browses
-          Sell → Brand list, since that screen doesn't know this brand exists.
+          This brand ID is not in the app's built-in brand list (<code>brand_model.dart</code>). Models added here are still searchable in the app, but won't appear when browsing brands until the ID is added there.
         </p>
 
         <div class="table-wrap">
-          <table>
+          <table class="data-table">
             <thead>
               <tr>
-                <th style="width:64px"></th>
+                <th class="col-thumb"></th>
                 <th>Model</th>
                 <th>Headline price</th>
                 <th>Variants</th>
-                <th></th>
+                <th class="col-actions">Actions</th>
               </tr>
             </thead>
             <tbody id="models-tbody">
-              <tr><td colspan="5" class="empty">Choose a brand above.</td></tr>
+              <tr><td colspan="5" class="empty">Loading models…</td></tr>
             </tbody>
           </table>
         </div>
       </section>
 
-      <!-- ----- Orders tab ----- -->
-      <section id="tab-orders" class="tab-panel" hidden data-admin-only="1">
-        <div class="panel-header">
-          <div>
-            <h2>Orders</h2>
-            <p class="panel-sub">
-              Live — changes here update the buyer's app immediately, and
-              vice versa.
-            </p>
-          </div>
+      <!-- ==================== ORDERS TAB ==================== -->
+      <section id="tab-orders" class="tab-panel" data-admin-only="1" hidden>
+        <header class="panel-header">
+          <h2>Orders</h2>
+          <p class="panel-sub">Real-time feed. Status and agent updates sync immediately with the seller's app.</p>
+        </header>
+
+        <div id="orders-kpis" class="kpi-grid kpi-grid--interactive" aria-label="Orders overview">
+          <button type="button" class="kpi-card is-active" data-order-kpi="all">
+            <span class="kpi-card__label">Total loaded</span>
+            <strong class="kpi-card__value" id="kpi-ord-total">—</strong>
+            <span class="kpi-card__meta">Live window</span>
+          </button>
+          <button type="button" class="kpi-card kpi-card--info" data-order-kpi="needs_action">
+            <span class="kpi-card__label">Needs action</span>
+            <strong class="kpi-card__value" id="kpi-ord-action">—</strong>
+            <span class="kpi-card__meta">New or unassigned</span>
+          </button>
+          <button type="button" class="kpi-card kpi-card--purple" data-order-kpi="inspection">
+            <span class="kpi-card__label">In inspection</span>
+            <strong class="kpi-card__value" id="kpi-ord-inspection">—</strong>
+            <span class="kpi-card__meta">Active doorstep checks</span>
+          </button>
+          <button type="button" class="kpi-card kpi-card--accent" data-order-kpi="paid">
+            <span class="kpi-card__label">Completed payouts</span>
+            <strong class="kpi-card__value" id="kpi-ord-paid">—</strong>
+            <span class="kpi-card__meta" id="kpi-ord-paid-count">0 orders paid</span>
+          </button>
         </div>
 
-        <div class="toolbar">
-          <label class="field field--inline field--grow">
-            <span>Search</span>
-            <input id="orders-search" type="search" autocapitalize="none"
-                   autocorrect="off" placeholder="Model, brand, or order id…" />
+        <div class="toolbar toolbar--orders">
+          <label class="field field--grow">
+            <span>Search orders</span>
+            <input id="orders-search" type="search" placeholder="Model, brand, or reference FM-XXXXXX… (/)" autocomplete="off" />
           </label>
+          <div id="orders-status-chips" class="chip-bar" role="group" aria-label="Filter orders by status"></div>
         </div>
 
         <div class="table-wrap">
-          <table>
+          <table class="data-table data-table--orders">
             <thead>
               <tr>
                 <th>Order</th>
@@ -184,153 +317,248 @@
                 <th>Payout</th>
                 <th>Status</th>
                 <th>Placed</th>
-                <th>Set status</th>
-                <th></th>
+                <th>Stage &amp; Agent</th>
+                <th class="col-actions">Details</th>
               </tr>
             </thead>
             <tbody id="orders-tbody">
-              <tr><td colspan="7" class="empty">Loading…</td></tr>
+              <tr><td colspan="7" class="empty">Waiting for orders…</td></tr>
             </tbody>
           </table>
         </div>
       </section>
 
-      <!-- ----- Pricing tab ----- -->
-      <section id="tab-pricing" class="tab-panel" hidden data-admin-only="1">
-        <div class="panel-header">
-          <div>
-            <h2>Pricing rules</h2>
-            <p class="panel-sub">
-              What every fault takes off a phone's base price. The app reads
-              these live: a saved change is what the next seller is quoted,
-              with no app update and nothing to redeploy.
-            </p>
-          </div>
-        </div>
+      <!-- ==================== PRICING RULES TAB ==================== -->
+      <section id="tab-pricing" class="tab-panel" data-admin-only="1" hidden>
+        <header class="panel-header">
+          <h2>Pricing rules</h2>
+          <p class="panel-sub">Deduction percentages applied during grading, plus minimum scrap values when deductions exceed the device price.</p>
+        </header>
 
         <div class="toolbar">
           <label class="field field--inline">
-            <span>Show percentages as money on a phone worth</span>
-            <input id="pricing-base" type="number" min="0" step="500"
-                   value="20000" inputmode="numeric" />
+            <span>Preview on a ₹ quote</span>
+            <input id="pricing-base" type="number" min="0" step="1000" value="30000" />
           </label>
-          <button id="pricing-refresh" class="btn btn--ghost" type="button"
-                  title="Re-read the rules from the database">↻ Reload</button>
-          <button id="pricing-new" class="btn btn--primary btn--small" type="button">
-            + New category
-          </button>
+          <p class="toolbar-note">
+            Percentages subtract from the device's base price. The rupee preview helps sanity-check changes without touching live quotes.
+          </p>
+          <div class="toolbar-actions">
+            <button id="pricing-new" class="btn btn--primary" type="button">
+              <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              New category
+            </button>
+            <button id="pricing-refresh" class="btn" type="button">
+              <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+              Refresh
+            </button>
+          </div>
         </div>
 
         <p class="field-help">
-          Deductions add up and then stop: the payout never falls below 10% of
-          the base price, however many faults a phone has. Only a
-          <strong>failed</strong> auto-check costs anything — a test that
-          reported nothing is not a fault, which on an iPhone is most of them.
-          And a fault already charged for by a question is never charged twice:
-          link the two with “Already charged as” and the larger of the two is
-          taken, not both.
+          Deductions add up and then stop at a 10% floor of the base price. Only a <strong>failed</strong> auto-check deducts value; untested sensors cost nothing. Link duplicate faults with “Already charged as” so the larger percentage applies once.
         </p>
 
-        <div id="pricing-list"></div>
+        <div id="pricing-list" class="pricing-list">
+          <p class="empty">Open this tab to load the pricing rules.</p>
+        </div>
 
-        <!-- Filled from the loaded rules — see renderPricingDatalists(). -->
         <datalist id="checkup-test-keys"></datalist>
         <datalist id="rule-fault-names"></datalist>
-        <!-- Scrap rows key on the brand document id and on the series name
-             `deriveSeries()` produces. Both are datalists, not selects: a
-             brand or a series the panel has not loaded yet must still be
-             priceable by typing it. -->
         <datalist id="scrap-brands"></datalist>
         <datalist id="scrap-series"></datalist>
       </section>
 
-      <!-- ----- Second-hand listings tab ----- -->
-      <section id="tab-listings" class="tab-panel" hidden data-admin-only="1">
-        <div class="panel-header">
-          <div>
-            <h2>Second-hand listings</h2>
-            <p class="panel-sub">
-              What the app's home screen shows buyers. Read-only here — see
-              the note below for why.
-            </p>
+      <!-- ==================== INSPECTION CHECKLIST TAB ==================== -->
+      <section id="tab-checklist" class="tab-panel" data-admin-only="1" hidden>
+        <header class="panel-header">
+          <h2>Inspection checklist</h2>
+          <p class="panel-sub">Questions your field agent answers at the door. Option 1 is always the clean baseline; lower options record findings and calculate the suggested deduction.</p>
+        </header>
+
+        <div class="toolbar">
+          <button id="checklist-add" class="btn btn--primary" type="button">
+            <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            Add question
+          </button>
+          <button id="checklist-seed" class="btn" type="button" title="Fill in a standard checklist, for you to edit">Load standard questions</button>
+          <span id="checklist-dirty" class="rule-card__dirty" hidden>Unsaved changes</span>
+          <div class="toolbar-actions">
+            <button id="checklist-save" class="btn btn--primary" type="button" disabled>Save checklist</button>
+            <button id="checklist-refresh" class="btn" type="button">
+              <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+              Refresh
+            </button>
           </div>
         </div>
 
-        <p class="warning-note">
-          ℹ️ This collection lives in a <strong>different Firebase project</strong>
-          (<code>fren-75087</code>) than the catalog and orders above
-          (<code>french-mobiles-marketplace</code>) — the Android app's build
-          config (<code>google-services.json</code>) points here for its
-          default connection, while everything else uses a second,
-          explicitly-named connection to the other project. Both are real and
-          both are live. See README.md for the full explanation. Editing is
-          disabled here because doing it safely would need a second admin
-          sign-in scoped to this other project.
-        </p>
+        <datalist id="ck-groups"></datalist>
+        <div id="checklist-list" class="checklist-list">
+          <p class="empty">Open this tab to load the checklist.</p>
+        </div>
+      </section>
+
+      <!-- ==================== STAFF TAB ==================== -->
+      <section id="tab-staff" class="tab-panel" data-admin-only="1" hidden>
+        <header class="panel-header staff-header">
+          <h2>Staff &amp; Inspectors</h2>
+          <p class="panel-sub">Field agents sign in with their own credentials and see only the pickups assigned to them.</p>
+        </header>
+
+        <div class="staff-grid">
+          <div class="card">
+            <h2>Add an inspector</h2>
+            <p class="panel-sub">Creates an isolated login account for a pickup agent. They can grade assigned devices without accessing catalog pricing or other orders.</p>
+            <form id="staff-form" class="staff-form" autocomplete="off">
+              <div class="field">
+                <label for="staff-name">Full name</label>
+                <input id="staff-name" type="text" required placeholder="e.g. Ravi Kumar" />
+              </div>
+              <div class="field">
+                <label for="staff-email">Email</label>
+                <input id="staff-email" type="email" required placeholder="ravi@yourshop.com" />
+              </div>
+              <div class="field">
+                <label for="staff-password">Temporary password</label>
+                <input id="staff-password" type="password" required minlength="6" placeholder="At least 6 characters" />
+              </div>
+              <p id="staff-error" class="login-error" hidden></p>
+              <button type="submit" id="staff-submit" class="btn btn--primary">
+                <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>
+                Create inspector account
+              </button>
+            </form>
+          </div>
+
+          <div class="card">
+            <h2>Active inspectors</h2>
+            <div id="staff-list" class="staff-list">
+              <p class="empty">Loading inspectors…</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== SECOND-HAND LISTINGS TAB ==================== -->
+      <section id="tab-listings" class="tab-panel" data-admin-only="1" hidden>
+        <header class="panel-header">
+          <h2>Second-hand listings</h2>
+          <p class="panel-sub">Read-only view of retail stock from the storefront project (<code>fren-75087</code>).</p>
+        </header>
+
+        <div class="toolbar">
+          <div class="note">
+            <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+            <span>Read-only storefront feed. Edit inventory in the shop's listing manager.</span>
+          </div>
+          <div class="toolbar-actions">
+            <button id="listings-refresh" class="btn">
+              <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+              Refresh
+            </button>
+          </div>
+        </div>
 
         <div class="table-wrap">
-          <table>
+          <table class="data-table">
             <thead>
               <tr>
-                <th style="width:64px"></th>
+                <th class="col-thumb"></th>
                 <th>Device</th>
                 <th>Condition</th>
                 <th>Price</th>
-                <th>Original price</th>
+                <th>Original</th>
               </tr>
             </thead>
             <tbody id="listings-tbody">
-              <tr><td colspan="5" class="empty">Loading…</td></tr>
+              <tr><td colspan="5" class="empty">Loading listings…</td></tr>
             </tbody>
           </table>
         </div>
       </section>
 
+      <!-- ==================== INSPECTOR PICKUPS TAB ==================== -->
+      <section id="tab-inspector" class="tab-panel" hidden>
+        <div class="pickups">
+          <div class="pickups__head">
+            <h2 class="heading-5">Your pickups</h2>
+            <p class="caption-2">Oldest first. Tap an order to verify the device, walk through the checklist, and confirm the final payout.</p>
+          </div>
+          <div id="inspector-list">
+            <p class="empty">Loading your pickups…</p>
+          </div>
+        </div>
+      </section>
     </main>
-    <!-- Mobile bottom navigation (shown under 720px only — see style.css).
-         Mirrors the top tabs; both are wired to the same activateTab() in app.js. -->
+
+    <!-- Mobile navigation (visible below 720px; admin only) -->
     <nav class="bottom-nav" data-admin-only="1" aria-label="Sections">
-      <button class="bottom-nav__btn bottom-nav__btn--active" data-tab="tab-catalog" aria-selected="true"><span class="bottom-nav__icon" aria-hidden="true">📦</span><span>Catalog</span></button>
-      <button class="bottom-nav__btn" data-tab="tab-orders" aria-selected="false"><span class="bottom-nav__icon" aria-hidden="true">🧾</span><span>Orders</span></button>
-      <button class="bottom-nav__btn" data-tab="tab-pricing" aria-selected="false"><span class="bottom-nav__icon" aria-hidden="true">₹</span><span>Pricing</span></button>
-      <button class="bottom-nav__btn" data-tab="tab-checklist" aria-selected="false"><span class="bottom-nav__icon" aria-hidden="true">✅</span><span>Checklist</span></button>
-      <button class="bottom-nav__btn" data-tab="tab-staff" aria-selected="false"><span class="bottom-nav__icon" aria-hidden="true">👥</span><span>Staff</span></button>
-      <button class="bottom-nav__btn" data-tab="tab-listings" aria-selected="false"><span class="bottom-nav__icon" aria-hidden="true">🏷️</span><span>Listings</span></button>
+      <button class="bottom-nav__btn bottom-nav__btn--active" data-tab="tab-catalog" type="button">
+        <span class="bottom-nav__icon" aria-hidden="true"></span>
+        <span class="bottom-nav__label">Catalog</span>
+      </button>
+      <button class="bottom-nav__btn" data-tab="tab-orders" type="button">
+        <span class="bottom-nav__icon-wrap">
+          <span class="bottom-nav__icon" aria-hidden="true"></span>
+          <span id="orders-bottom-badge" class="nav-badge nav-badge--dot" hidden>0</span>
+        </span>
+        <span class="bottom-nav__label">Orders</span>
+      </button>
+      <button class="bottom-nav__btn" data-tab="tab-pricing" type="button">
+        <span class="bottom-nav__icon" aria-hidden="true"></span>
+        <span class="bottom-nav__label">Pricing</span>
+      </button>
+      <button class="bottom-nav__btn" data-tab="tab-checklist" type="button">
+        <span class="bottom-nav__icon" aria-hidden="true"></span>
+        <span class="bottom-nav__label">Checklist</span>
+      </button>
+      <button class="bottom-nav__btn" data-tab="tab-staff" type="button">
+        <span class="bottom-nav__icon" aria-hidden="true"></span>
+        <span class="bottom-nav__label">Staff</span>
+      </button>
+      <button class="bottom-nav__btn" data-tab="tab-listings" type="button">
+        <span class="bottom-nav__icon" aria-hidden="true"></span>
+        <span class="bottom-nav__label">Listings</span>
+      </button>
     </nav>
 
-    <!-- Mobile FAB: quick "Add model" on the Catalog tab (mobile only). -->
-    <button id="fab-add-model" class="fab" data-admin-only="1" aria-label="Add model" title="Add model">+</button>
+    <!-- Scroll-aware mobile FAB: only appears once the top "+ Add model" scrolls out of view -->
+    <button id="fab-add-model" class="fab" data-admin-only="1" type="button" aria-label="Add model" title="Add model">
+      <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
   </div>
 
-  <!-- ===================== Add / edit model ===================== -->
-  <dialog id="model-modal" class="modal">
+  <!-- ===================== MODEL MODAL ===================== -->
+  <dialog id="model-modal" class="modal" data-admin-only="1">
     <form id="model-form" class="modal-card">
-      <h3 id="model-modal-title">Add model</h3>
+      <div class="modal-head">
+        <h3 id="model-modal-title">Add model</h3>
+        <button type="button" class="icon-btn" id="model-modal-close" aria-label="Close">
+          <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
 
       <label class="field">
         <span>Model name</span>
-        <input id="model-form-name" type="text" required placeholder="e.g. iPhone 13" />
+        <input id="model-form-name" type="text" required placeholder="e.g. iPhone 15 Pro" />
       </label>
+
       <label class="field">
         <span>Headline price (₹) <em>(optional)</em></span>
-        <input id="model-form-price" type="number" min="0" step="1"
-               inputmode="numeric" placeholder="Leave blank — use variants" />
+        <input id="model-form-price" type="number" min="0" step="1" inputmode="numeric" placeholder="Leave blank to use variants" />
       </label>
       <p class="field-help">
-        Leave this blank and the app shows the highest variant price, which is
-        how every model in this catalogue works today. Put a number here and
-        the app uses it for the brand list and stops reading the variants — so
-        it can then disagree with the price the variant screen actually quotes.
-        To change what a seller is paid, edit the <strong>variants</strong> instead.
+        Leave blank and the app automatically shows the highest variant price. Entering a number overrides the brand-list headline; edit <strong>variants</strong> to change actual quotes.
       </p>
+
       <label class="field">
         <span>Release year <em>(optional)</em></span>
-        <input id="model-form-year" type="text" inputmode="numeric" placeholder="e.g. 2021" />
+        <input id="model-form-year" type="text" inputmode="numeric" placeholder="e.g. 2024" />
       </label>
+
       <label class="field">
         <span>Image URL <em>(optional)</em></span>
-        <input id="model-form-image" type="url" inputmode="url" autocapitalize="none"
-               autocorrect="off" placeholder="https://…" />
+        <input id="model-form-image" type="url" inputmode="url" autocapitalize="none" autocorrect="off" placeholder="https://…" />
       </label>
 
       <div class="modal-actions">
@@ -340,28 +568,26 @@
     </form>
   </dialog>
 
-  <!-- ===================== Add / edit variant ===================== -->
-  <dialog id="variant-modal" class="modal">
+  <!-- ===================== VARIANT MODAL ===================== -->
+  <dialog id="variant-modal" class="modal" data-admin-only="1">
     <form id="variant-form" class="modal-card">
-      <h3 id="variant-modal-title">Add variant</h3>
+      <div class="modal-head">
+        <h3 id="variant-modal-title">Add variant</h3>
+        <button type="button" class="icon-btn" id="variant-modal-close" aria-label="Close">
+          <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
 
       <label class="field">
         <span>Storage</span>
-        <!-- A datalist rather than a select: the catalog's existing spellings
-             are offered, but a genuinely new configuration can still just be
-             typed. -->
-        <input id="variant-form-storage" type="text" required
-               list="variant-storage-options" autocomplete="off"
-               placeholder="e.g. 128GB 8GB RAM" />
+        <input id="variant-form-storage" type="text" required list="variant-storage-options" autocomplete="off" placeholder="e.g. 128GB 8GB RAM" />
         <datalist id="variant-storage-options"></datalist>
       </label>
-      <!-- One tap fills the field with a spelling already used elsewhere in
-           the catalog. Hidden entirely when nothing is known yet. -->
       <div id="variant-storage-picks" class="chip-row" hidden></div>
+
       <label class="field">
         <span>Base price (₹)</span>
-        <input id="variant-form-price" type="number" min="0" step="1" required
-               inputmode="numeric" placeholder="e.g. 32000" />
+        <input id="variant-form-price" type="number" min="0" step="1" required inputmode="numeric" placeholder="e.g. 32000" />
       </label>
 
       <div class="modal-actions">
@@ -371,27 +597,27 @@
     </form>
   </dialog>
 
-  <!-- ===================== New pricing category ===================== -->
+  <!-- ===================== NEW PRICING CATEGORY MODAL ===================== -->
   <dialog id="rule-modal" class="modal" data-admin-only="1">
     <form id="rule-form" class="modal-card">
-      <h3>New pricing category</h3>
+      <div class="modal-head">
+        <h3>New pricing category</h3>
+        <button type="button" class="icon-btn" id="rule-modal-close" aria-label="Close">
+          <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
 
       <label class="field">
         <span>Id</span>
-        <input id="rule-form-id" type="text" required autocomplete="off"
-               autocapitalize="none" autocorrect="off"
-               placeholder="e.g. water_damage" />
+        <input id="rule-form-id" type="text" required autocomplete="off" autocapitalize="none" autocorrect="off" placeholder="e.g. water_damage" />
       </label>
       <p class="field-help">
-        The document name under <code>deduction_rules</code>, and the key the
-        app would read it by. Lower case, underscores, no spaces — anything
-        else is converted.
+        Document name under <code>deduction_rules</code>. Lower case and underscores only; other characters are converted automatically.
       </p>
 
       <label class="field">
         <span>Title</span>
-        <input id="rule-form-title" type="text" autocomplete="off"
-               placeholder="e.g. Water damage" />
+        <input id="rule-form-title" type="text" autocomplete="off" placeholder="e.g. Water damage" />
       </label>
 
       <label class="field">
@@ -404,11 +630,7 @@
       </label>
 
       <p class="field-help">
-        A new category is saved to the database and shows up here immediately.
-        The sell wizard asks five fixed questions today, so it will not appear
-        in front of a seller until the app is taught to read it — the panel
-        lists it under “Not read by the app” until then, rather than pretending
-        it is live.
+        Saved immediately to the database and listed under “Not read by the app” until the mobile sell wizard reads this category ID.
       </p>
 
       <div class="modal-actions">
@@ -418,82 +640,8 @@
     </form>
   </dialog>
 
-  <!-- ===================== Staff (admin only) ===================== -->
-  <section id="tab-staff" class="tab-panel" hidden data-admin-only="1">
-    <div class="card">
-      <h2>Add an inspector</h2>
-      <p class="cell-sub">
-        They sign in here with this email and password. Firebase never shows
-        the password again, so write it down and hand it over now.
-      </p>
-      <form id="staff-form" class="staff-form">
-        <label class="field">
-          <span>Name</span>
-          <input id="staff-name" type="text" required autocomplete="off"
-                 placeholder="e.g. Ravi Kumar" />
-        </label>
-        <label class="field">
-          <span>Email</span>
-          <input id="staff-email" type="email" required autocomplete="off"
-                 placeholder="ravi@example.com" />
-        </label>
-        <label class="field">
-          <span>Password</span>
-          <input id="staff-password" type="text" required minlength="6"
-                 autocomplete="off" placeholder="at least 6 characters" />
-        </label>
-        <button id="staff-submit" type="submit" class="btn btn--primary">
-          Create inspector
-        </button>
-      </form>
-    </div>
-
-    <div class="card">
-      <h2>Inspectors</h2>
-      <div id="staff-list"></div>
-    </div>
-  </section>
-
-  <!-- ===================== Inspector's own screen ===================== -->
-  <section id="tab-checklist" class="tab-panel" hidden data-admin-only="1">
-    <div class="card">
-      <h2>Inspection checklist</h2>
-      <p class="cell-sub">
-        What the agent is asked about the phone at the door. Each question is
-        a list of answers, and the agent picks one.
-      </p>
-      <p class="cell-sub">
-        <strong>The first answer on every question is the clean one</strong> —
-        "No scratch", "No defect". Anything below it counts as something found
-        and is totalled on the job card. None of this changes the payout: the
-        agent still confirms the amount themselves, with a reason.
-      </p>
-      <div class="pricing-toolbar">
-        <button id="checklist-refresh" class="btn btn--ghost" type="button">↻ Reload</button>
-        <button id="checklist-seed" class="btn btn--ghost btn--small" type="button"
-                title="Fill in a standard checklist, for you to edit">
-          Fill in the standard checklist
-        </button>
-        <button id="checklist-add" class="btn btn--primary btn--small" type="button">+ Question</button>
-        <button id="checklist-save" class="btn btn--primary btn--small" type="button" disabled>Save</button>
-      </div>
-      <datalist id="ck-groups"></datalist>
-      <div id="checklist-list"></div>
-    </div>
-  </section>
-
-  <section id="tab-inspector" class="tab-panel" hidden>
-    <div class="pickups">
-      <div class="pickups__head">
-        <h2 class="heading-5">Your pickups</h2>
-        <p class="caption-2">Oldest first. Open one to work through it step by step.</p>
-      </div>
-      <div id="inspector-list"></div>
-    </div>
-  </section>
-
-  <!-- ===================== Order details ===================== -->
-  <dialog id="order-modal" class="modal modal--sheet">
+  <!-- ===================== ORDER DETAILS MODAL ===================== -->
+  <dialog id="order-modal" class="modal modal--sheet" data-admin-only="1">
     <div class="modal-card od">
       <div class="od__bar">
         <h3 class="heading-6">Order details</h3>
@@ -507,8 +655,31 @@
     </div>
   </dialog>
 
-  <div id="toast-host" class="toast-host"></div>
+  <!-- ===================== KEYBOARD SHORTCUTS MODAL ===================== -->
+  <dialog id="shortcuts-modal" class="modal" data-admin-only="1">
+    <div class="modal-card">
+      <header class="modal-head">
+        <h2>Keyboard shortcuts</h2>
+        <button type="button" class="icon-btn" id="shortcuts-modal-close" aria-label="Close">
+          <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </header>
+      <div class="modal-body shortcuts-list">
+        <div class="shortcut-row"><span>Focus search on current tab</span><kbd>/</kbd></div>
+        <div class="shortcut-row"><span>Switch admin tabs (Catalog → Listings)</span><span><kbd>1</kbd> – <kbd>6</kbd></span></div>
+        <div class="shortcut-row"><span>Toggle Light / Dark theme</span><kbd>T</kbd></div>
+        <div class="shortcut-row"><span>Close active dialog</span><kbd>Esc</kbd></div>
+        <div class="shortcut-row"><span>Open this shortcut list</span><kbd>?</kbd></div>
+      </div>
+      <footer class="modal-foot">
+        <button type="button" class="btn btn--primary" id="shortcuts-modal-done">Got it</button>
+      </footer>
+    </div>
+  </dialog>
 
-  <script type="module" src="app.js?v=8"></script>
+  <!-- ===================== TOAST HOST ===================== -->
+  <div id="toast-host" class="toast-host" role="status" aria-live="polite" aria-atomic="false"></div>
+
+  <script type="module" src="app.js?v=9"></script>
 </body>
 </html>

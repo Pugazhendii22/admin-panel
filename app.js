@@ -15,6 +15,11 @@ import {
   secondHandFirebaseConfig,
   webPushVapidKey,
 } from "./firebase-config.js";
+import {
+  isPreviewHost,
+  requestedDemoRole,
+  createDemoState,
+} from "./demo-data.js";
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import {
@@ -117,18 +122,63 @@ const escapeHtml = (s) =>
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   }[c]));
 
+// Unified 1.9px-stroke SVG icon primitives (replaces emojis and raw ASCII symbols).
+const UI_ICONS = {
+  phone: `<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 5.5h3M12 18.2h.01"/></svg>`,
+  chevron: `<svg class="ui-icon ui-icon--chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>`,
+  plus: `<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>`,
+  copy: `<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`,
+  success: `<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>`,
+  error: `<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 16h.01"/></svg>`,
+  info: `<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>`,
+};
+
+// Preview-only sandbox state (always null in real Firebase sessions).
+let demoState = null;
+
 function toast(message, kind = "info") {
   const host = el("toast-host");
+  if (!host) return;
   const node = document.createElement("div");
   node.className = `toast toast--${kind}`;
-  node.textContent = message;
+  const icon = UI_ICONS[kind] || UI_ICONS.info;
+  node.innerHTML = `${icon}<span>${escapeHtml(message)}</span>`;
   host.appendChild(node);
   requestAnimationFrame(() => node.classList.add("toast--in"));
   setTimeout(() => {
     node.classList.remove("toast--in");
-    setTimeout(() => node.remove(), 200);
-  }, 4000);
+    setTimeout(() => node.remove(), 220);
+  }, 3800);
 }
+
+// --- Theme (Light / Dark with full WCAG AA token parity) -------------------
+function applyTheme(theme) {
+  const isDark = theme === "dark";
+  document.documentElement.dataset.theme = isDark ? "dark" : "light";
+  const meta = el("meta-theme-color");
+  if (meta) meta.setAttribute("content", isDark ? "#0B1120" : "#FFFFFF");
+  const label = isDark ? "Switch to light mode" : "Switch to dark mode";
+  for (const id of ["theme-toggle", "login-theme-toggle"]) {
+    const btn = el(id);
+    if (!btn) continue;
+    btn.setAttribute("aria-pressed", String(isDark));
+    btn.setAttribute("aria-label", label);
+    btn.title = `${label} (T)`;
+  }
+  try {
+    localStorage.setItem("fm_admin_theme", isDark ? "dark" : "light");
+  } catch {}
+}
+
+function toggleTheme() {
+  const current = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+  applyTheme(current === "dark" ? "light" : "dark");
+}
+
+// Sync toggle buttons with pre-paint theme immediately.
+applyTheme(document.documentElement.dataset.theme === "dark" ? "dark" : "light");
+el("theme-toggle")?.addEventListener("click", toggleTheme);
+el("login-theme-toggle")?.addEventListener("click", toggleTheme);
 
 function formatDate(ts) {
   if (!ts) return "—";
@@ -300,6 +350,7 @@ let inspectors = [];
 
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
+    if (demoState) return;
     stopOrdersListener();
     showLogin();
     return;
@@ -346,6 +397,8 @@ onAuthStateChanged(auth, async (user) => {
   el("login-error").hidden = true;
   el("admin-email").textContent = user.email;
   currentRole = isAdmin ? "admin" : "inspector";
+  const rolePill = el("topbar-role-pill");
+  if (rolePill) rolePill.textContent = isAdmin ? "Admin" : "Inspector";
   showApp();
 
   if (isInspector) {
@@ -395,7 +448,22 @@ el("login-form").addEventListener("submit", async (e) => {
   }
 });
 
-el("sign-out").addEventListener("click", () => signOut(auth));
+el("sign-out").addEventListener("click", () => {
+  if (demoState) {
+    demoState = null;
+    currentRole = null;
+    document.body.classList.remove("role-inspector");
+    const switchBtn = el("demo-role-switch");
+    if (switchBtn) switchBtn.hidden = true;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("demo");
+    window.history.replaceState({}, "", url);
+    showLogin();
+    toast("Exited preview mode", "info");
+    return;
+  }
+  signOut(auth);
+});
 
 // Reveal toggle. Kept as a real <button type="button"> outside the <label> so
 // tapping it never re-triggers the label's focus forwarding, and so a password
@@ -586,20 +654,74 @@ function populateSeriesFilter(brandId, models) {
 // flag onto all 285 existing documents.
 const isHidden = (model) => model.hidden === true;
 
+// Tracks highest resolved variant price per visible model so the KPI card stays live.
+let catalogHeadlinePrices = new Map();
+
+function updateCatalogKpis(brandId, visibleModels) {
+  const hiddenCount = allModels.filter(isHidden).length;
+  const seriesSet = new Set(allModels.map((m) => deriveSeries(m.model, brandId)));
+  const brandLabel = KNOWN_BRANDS.find((b) => b.toLowerCase() === brandId) || brandId || "—";
+
+  const shownEl = el("kpi-cat-shown");
+  const brandEl = el("kpi-cat-brand");
+  const hiddenEl = el("kpi-cat-hidden");
+  const seriesEl = el("kpi-cat-series");
+  if (shownEl) shownEl.textContent = String(visibleModels.length);
+  if (brandEl) brandEl.textContent = `${brandLabel} · ${allModels.length} total`;
+  if (hiddenEl) hiddenEl.textContent = String(hiddenCount);
+  if (seriesEl) seriesEl.textContent = String(seriesSet.size);
+
+  updateCatalogTopPriceKpi(visibleModels);
+}
+
+function updateCatalogTopPriceKpi(models = currentModels) {
+  const topEl = el("kpi-cat-top");
+  const topModelEl = el("kpi-cat-top-model");
+  if (!topEl || !topModelEl) return;
+  let best = 0;
+  let bestName = "";
+  for (const m of models) {
+    const p = catalogHeadlinePrices.get(m.id) || Number(m.base_price) || 0;
+    if (p > best) {
+      best = p;
+      bestName = m.model || "";
+    }
+  }
+  topEl.textContent = best > 0 ? money(best) : "—";
+  topModelEl.textContent = bestName || "Across loaded models";
+}
+
 function applySeriesFilter() {
   const brandId = currentBrandId();
   const wantedSeries = el("series-select").value;
   const visibility = el("visibility-select").value;
+  const q = (el("catalog-search")?.value || "").trim().toLowerCase();
 
   let models = allModels;
   if (visibility === "visible") models = models.filter((m) => !isHidden(m));
   else if (visibility === "hidden") models = models.filter(isHidden);
   if (wantedSeries) models = models.filter((m) => deriveSeries(m.model, brandId) === wantedSeries);
+  if (q) {
+    models = models.filter(
+      (m) =>
+        (m.model || "").toLowerCase().includes(q) ||
+        String(m.release_year || "").includes(q) ||
+        deriveSeries(m.model, brandId).toLowerCase().includes(q)
+    );
+  }
+
+  const clearBtn = el("catalog-clear-filters");
+  if (clearBtn) {
+    clearBtn.hidden = !(wantedSeries || q || visibility !== "visible");
+  }
+
+  catalogHeadlinePrices = new Map();
+  updateCatalogKpis(brandId, models);
 
   const tbody = el("models-tbody");
   if (models.length === 0) {
-    const what = visibility === "hidden" ? "No hidden models" : "No models";
-    tbody.innerHTML = `<tr><td colspan="5" class="empty">${what}${wantedSeries ? ` in ${escapeHtml(wantedSeries)}` : ""}.</td></tr>`;
+    const what = visibility === "hidden" ? "No hidden models" : "No matching models";
+    tbody.innerHTML = `<tr><td colspan="5" class="empty">${what}${wantedSeries ? ` in ${escapeHtml(wantedSeries)}` : ""}${q ? ` for “${escapeHtml(q)}”` : ""}.</td></tr>`;
     return;
   }
   renderModelsTable(brandId, models);
@@ -607,17 +729,31 @@ function applySeriesFilter() {
 
 el("series-select").addEventListener("change", applySeriesFilter);
 el("visibility-select").addEventListener("change", applySeriesFilter);
+el("catalog-search")?.addEventListener("input", applySeriesFilter);
+el("catalog-clear-filters")?.addEventListener("click", () => {
+  el("series-select").value = "";
+  el("visibility-select").value = "visible";
+  const search = el("catalog-search");
+  if (search) search.value = "";
+  applySeriesFilter();
+});
 
 // Hiding is a single-field write, so the cached copy is patched in place
 // rather than dropped — the list re-renders with no reads at all.
 async function toggleHidden(brandId, model) {
   const nowHidden = !isHidden(model);
   try {
-    await updateDoc(doc(db, "brands", brandId, "models", model.id), { hidden: nowHidden });
+    if (demoState) {
+      const list = demoState.catalog[brandId]?.models || [];
+      const idx = list.findIndex((m) => m.id === model.id);
+      if (idx !== -1) list[idx].hidden = nowHidden;
+    } else {
+      await updateDoc(doc(db, "brands", brandId, "models", model.id), { hidden: nowHidden });
+    }
 
     const i = allModels.findIndex((m) => m.id === model.id);
     if (i !== -1) allModels[i] = { ...allModels[i], hidden: nowHidden };
-    saveModelsCache(brandId);
+    if (!demoState) saveModelsCache(brandId);
 
     toast(
       nowHidden
@@ -644,11 +780,21 @@ async function loadModelsForSelectedBrand({ force = false } = {}) {
     allModels = models;
     populateSeriesFilter(brandId, models);
     if (models.length === 0) {
+      updateCatalogKpis(brandId, []);
       tbody.innerHTML = `<tr><td colspan="5" class="empty">No models yet under "${escapeHtml(brandId)}".</td></tr>`;
       return;
     }
     applySeriesFilter();
   };
+
+  if (demoState) {
+    const models = (demoState.catalog[brandId]?.models || [])
+      .slice()
+      .sort((a, b) => (a.model || "").localeCompare(b.model || ""));
+    show(models);
+    setCacheNote(false);
+    return;
+  }
 
   if (!force) {
     const cached = cacheGet(modelsKey(brandId));
@@ -705,10 +851,11 @@ function renderModelsTable(brandId, models) {
   tbody.innerHTML = "";
   for (const m of models) {
     const tr = document.createElement("tr");
+    tr.dataset.rowModelId = m.id;
     tr.innerHTML = `
       <td class="cell-media">
         <div class="cell-thumb">
-          ${m.image_url ? `<img src="${escapeHtml(m.image_url)}" alt="" onerror="this.style.display='none'">` : `<div class="thumb-placeholder">📱</div>`}
+          ${m.image_url ? `<img src="${escapeHtml(m.image_url)}" alt="" onerror="this.style.display='none'">` : `<div class="thumb-placeholder">${UI_ICONS.phone}</div>`}
         </div>
       </td>
       <td class="cell-main">
@@ -722,7 +869,7 @@ function renderModelsTable(brandId, models) {
       <td class="cell-price" data-label="Headline price" data-model-id="${escapeHtml(m.id)}">…</td>
       <td class="variant-count" data-label="Variants" data-model-id="${escapeHtml(m.id)}">…</td>
       <td class="cell-actions">
-        <button class="btn btn--small" data-action="variants" data-id="${escapeHtml(m.id)}">Variants</button>
+        <button class="btn btn--small btn-variants" data-action="variants" data-id="${escapeHtml(m.id)}" aria-expanded="false">Variants ${UI_ICONS.chevron}</button>
         <button class="btn btn--small" data-action="edit-model" data-id="${escapeHtml(m.id)}">Edit</button>
         <button class="btn btn--small" data-action="toggle-hidden" data-id="${escapeHtml(m.id)}">${isHidden(m) ? "Unhide" : "Hide"}</button>
         <button class="btn btn--small btn--danger" data-action="delete-model" data-id="${escapeHtml(m.id)}">Delete</button>
@@ -763,6 +910,11 @@ function renderModelsTable(brandId, models) {
 // Single door to the variants collection, so the cache can never be bypassed
 // by accident — this is the query that multiplies by model count.
 async function fetchVariants(brandId, modelId, { force = false } = {}) {
+  if (demoState) {
+    const variants = (demoState.catalog[brandId]?.variants?.[modelId] || []).slice();
+    rememberStorageOptions(variants.map((v) => v.storage));
+    return variants;
+  }
   if (!force) {
     const cached = cacheGet(variantsKey(brandId, modelId));
     if (cached) return cached;
@@ -785,10 +937,16 @@ async function loadVariantSummary(brandId, model) {
     if (!priceEl) return;
 
     if (declared > 0) {
+      catalogHeadlinePrices.set(model.id, declared);
+      updateCatalogTopPriceKpi();
       priceEl.innerHTML = `<span>${money(declared)}<div class="cell-sub">fixed on model</div></span>`;
       return;
     }
     const highest = variants.reduce((max, v) => Math.max(max, Number(v.base_price) || 0), 0);
+    if (highest > 0) {
+      catalogHeadlinePrices.set(model.id, highest);
+      updateCatalogTopPriceKpi();
+    }
     priceEl.innerHTML = highest > 0
       ? `<span>${money(highest)}<div class="cell-sub">highest variant</div></span>`
       : `<span>—<div class="cell-sub">no price set</div></span>`;
@@ -800,14 +958,25 @@ async function loadVariantSummary(brandId, model) {
 
 async function toggleVariants(brandId, modelId) {
   const row = document.querySelector(`.variant-row[data-model-id="${modelId}"]`);
+  const syncExpandedVisuals = (openId) => {
+    document.querySelectorAll('tr[data-row-model-id]').forEach((tr) => {
+      tr.classList.toggle("is-expanded", tr.dataset.rowModelId === openId);
+    });
+    document.querySelectorAll('.btn-variants[data-action="variants"]').forEach((b) => {
+      b.setAttribute("aria-expanded", String(b.dataset.id === openId));
+    });
+  };
+
   if (expandedModelId === modelId) {
     row.hidden = true;
     expandedModelId = null;
+    syncExpandedVisuals(null);
     return;
   }
   document.querySelectorAll(".variant-row").forEach((r) => (r.hidden = true));
   expandedModelId = modelId;
   row.hidden = false;
+  syncExpandedVisuals(modelId);
   await renderVariantPanel(brandId, modelId);
 }
 
@@ -830,7 +999,7 @@ async function renderVariantPanel(brandId, modelId) {
         `).join("")}
     </div>
     ${suggestionBlock(brandId, modelId, variants)}
-    <button class="btn btn--small btn--primary" data-add-variant="1">+ Add variant</button>
+    <button class="btn btn--small btn--primary" data-add-variant="1">${UI_ICONS.plus} Add variant</button>
   `;
 
   wireSuggestions(brandId, modelId);
@@ -1312,7 +1481,108 @@ function stopOrdersListener() {
   }
 }
 
+let ordersStatusFilter = "all";
+
+function updateOrdersKpisAndBadges(orders) {
+  const list = Array.isArray(orders) ? orders : [];
+  const counts = {
+    all: list.length,
+    placed: 0,
+    agent_assigned: 0,
+    inspection: 0,
+    paid: 0,
+    declined: 0,
+    unassigned: 0,
+    needs_action: 0,
+  };
+  let paidValue = 0;
+
+  for (const o of list) {
+    const st = o.status || "placed";
+    if (st in counts) counts[st] += 1;
+    if (!o.inspectorId && st !== "paid" && st !== "declined") counts.unassigned += 1;
+    if (st === "placed" || (!o.inspectorId && st !== "paid" && st !== "declined")) {
+      counts.needs_action += 1;
+    }
+    if (st === "paid") paidValue += Number(o.finalPayout) || 0;
+  }
+
+  const set = (id, val) => {
+    const node = el(id);
+    if (node) node.textContent = val;
+  };
+  set("kpi-ord-total", String(counts.all));
+  set("kpi-ord-action", String(counts.needs_action));
+  set("kpi-ord-inspection", String(counts.inspection));
+  set("kpi-ord-paid", money(paidValue));
+  set("kpi-ord-paid-count", `${counts.paid} ${counts.paid === 1 ? "order" : "orders"} paid`);
+
+  // Live nav badges (sidebar rail + mobile bottom nav)
+  for (const badgeId of ["orders-nav-badge", "orders-bottom-badge"]) {
+    const badge = el(badgeId);
+    if (!badge) continue;
+    badge.hidden = counts.needs_action === 0;
+    badge.textContent = counts.needs_action > 99 ? "99+" : String(counts.needs_action);
+  }
+
+  // Sync active highlight on KPI cards
+  document.querySelectorAll("[data-order-kpi]").forEach((btn) => {
+    btn.classList.toggle("is-active", btn.dataset.orderKpi === ordersStatusFilter);
+  });
+
+  // Render interactive status filter chips
+  const chipsHost = el("orders-status-chips");
+  if (!chipsHost) return;
+  const chipDefs = [
+    { key: "all", label: "All", count: counts.all },
+    { key: "needs_action", label: "Needs action", count: counts.needs_action },
+    { key: "placed", label: "Order placed", count: counts.placed },
+    { key: "agent_assigned", label: "Agent assigned", count: counts.agent_assigned },
+    { key: "inspection", label: "Under inspection", count: counts.inspection },
+    { key: "paid", label: "Completed & paid", count: counts.paid },
+    { key: "declined", label: "Declined", count: counts.declined },
+    { key: "unassigned", label: "Unassigned", count: counts.unassigned },
+  ];
+  chipsHost.innerHTML = chipDefs
+    .map(
+      (c) => `
+      <button type="button" class="filter-chip ${ordersStatusFilter === c.key ? "is-active" : ""}" data-status-chip="${c.key}">
+        <span>${c.label}</span>
+        <span class="filter-chip__count">${c.count}</span>
+      </button>`
+    )
+    .join("");
+}
+
+// Wire KPI card & status chip click delegation once.
+document.addEventListener("click", (e) => {
+  const kpi = e.target.closest("[data-order-kpi]");
+  if (kpi) {
+    ordersStatusFilter = kpi.dataset.orderKpi;
+    renderOrders(lastOrders);
+    return;
+  }
+  const chip = e.target.closest("[data-status-chip]");
+  if (chip) {
+    ordersStatusFilter = chip.dataset.statusChip;
+    renderOrders(lastOrders);
+  }
+});
+
+function matchesOrderStatusFilter(o, mode) {
+  const st = o.status || "placed";
+  if (mode === "all") return true;
+  if (mode === "needs_action") {
+    return st === "placed" || (!o.inspectorId && st !== "paid" && st !== "declined");
+  }
+  if (mode === "unassigned") {
+    return !o.inspectorId && st !== "paid" && st !== "declined";
+  }
+  return st === mode;
+}
+
 function renderOrders(orders) {
+  updateOrdersKpisAndBadges(orders);
   const filter = el("orders-search").value.trim().toLowerCase();
 
   // Anything found by reference beyond the live window, shown alongside what
@@ -1321,7 +1591,7 @@ function renderOrders(orders) {
   const known = new Set(orders.map((o) => o.id));
   const pool = [...orders, ...searchedOrders.filter((o) => !known.has(o.id))];
 
-  const filtered = filter
+  let filtered = filter
     ? pool.filter((o) =>
         (o.modelName || "").toLowerCase().includes(filter) ||
         (o.brand || "").toLowerCase().includes(filter) ||
@@ -1333,6 +1603,10 @@ function renderOrders(orders) {
       )
     : orders;
 
+  if (ordersStatusFilter !== "all") {
+    filtered = filtered.filter((o) => matchesOrderStatusFilter(o, ordersStatusFilter));
+  }
+
   const tbody = el("orders-tbody");
   if (filtered.length === 0) {
     // Says which of the two situations it is, and what to do about the one
@@ -1343,6 +1617,11 @@ function renderOrders(orders) {
            Nothing in the latest ${ORDERS_WINDOW} orders matches “${escapeHtml(filter)}”.
            <div class="cell-sub">Enter the full reference (FM-XXXXXX) to search earlier orders.</div>
          </td></tr>`
+      : ordersStatusFilter !== "all"
+      ? `<tr><td colspan="7" class="empty">
+           No orders match this status filter.
+           <div class="cell-sub">Select “All” above to view every loaded order.</div>
+         </td></tr>`
       : `<tr><td colspan="7" class="empty">
            No orders yet.
            <div class="cell-sub">They appear here the moment somebody places one.</div>
@@ -1350,9 +1629,19 @@ function renderOrders(orders) {
     return;
   }
 
-  tbody.innerHTML = filtered.map((o) => `
+  tbody.innerHTML = filtered.map((o) => {
+    const refText = o.reference || o.id.slice(0, 8) + "…";
+    const copyVal = o.reference || o.id;
+    return `
     <tr>
-      <td class="mono" data-label="Order">${escapeHtml(o.reference || o.id.slice(0, 8) + "…")}</td>
+      <td class="mono" data-label="Order">
+        <span class="ref-cell">
+          <span>${escapeHtml(refText)}</span>
+          <button type="button" class="copy-ref-btn" data-copy-ref="${escapeHtml(copyVal)}" aria-label="Copy reference ${escapeHtml(refText)}" title="Copy reference">
+            ${UI_ICONS.copy}
+          </button>
+        </span>
+      </td>
       <td class="cell-main--full">
         <div class="cell-title">${escapeHtml(o.modelName || "Device")}</div>
         <div class="cell-sub">${escapeHtml([o.brand, o.storage].filter(Boolean).join(" · "))}</div>
@@ -1364,20 +1653,41 @@ function renderOrders(orders) {
         </span>
       </td>
       <td data-label="Placed">${formatDate(o.createdAt)}</td>
-      <td data-label="Status">
-        <select class="status-select" data-order-id="${escapeHtml(o.id)}">
-          ${ORDER_STAGES.map((s) => `<option value="${s.value}" ${s.value === (o.status || "placed") ? "selected" : ""}>${s.label}</option>`).join("")}
-        </select>
-        <select class="assign-select" data-assign-order="${escapeHtml(o.id)}">
-          <option value="">Unassigned</option>
-          ${inspectors.map((i) => `<option value="${escapeHtml(i.id)}" ${i.id === o.inspectorId ? "selected" : ""}>${escapeHtml(i.name || i.email || i.id)}</option>`).join("")}
-        </select>
+      <td data-label="Stage &amp; Agent">
+        <div class="order-controls">
+          <label class="order-ctrl">
+            <span class="order-ctrl__label">Stage</span>
+            <select class="status-select" data-order-id="${escapeHtml(o.id)}">
+              ${ORDER_STAGES.map((s) => `<option value="${s.value}" ${s.value === (o.status || "placed") ? "selected" : ""}>${s.label}</option>`).join("")}
+            </select>
+          </label>
+          <label class="order-ctrl">
+            <span class="order-ctrl__label">Agent</span>
+            <select class="assign-select" data-assign-order="${escapeHtml(o.id)}">
+              <option value="">Unassigned</option>
+              ${inspectors.map((i) => `<option value="${escapeHtml(i.id)}" ${i.id === o.inspectorId ? "selected" : ""}>${escapeHtml(i.name || i.email || i.id)}</option>`).join("")}
+            </select>
+          </label>
+        </div>
       </td>
       <td class="cell-actions">
         <button class="btn btn--small" data-action="view-order" data-id="${escapeHtml(o.id)}">Details</button>
       </td>
     </tr>
-  `).join("");
+  `;
+  }).join("");
+
+  tbody.querySelectorAll("[data-copy-ref]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const val = btn.dataset.copyRef;
+      try {
+        await navigator.clipboard.writeText(val);
+        toast(`Copied ${val}`, "success");
+      } catch {
+        toast(`Reference: ${val}`, "info");
+      }
+    });
+  });
 
   tbody.querySelectorAll(".assign-select").forEach((sel) => {
     sel.addEventListener("change", async () => {
@@ -1393,11 +1703,19 @@ function renderOrders(orders) {
       const newStatus = sel.value;
       sel.disabled = true;
       try {
-        await updateDoc(doc(db, "orders", orderId), {
-          status: newStatus,
-          updatedAt: serverTimestamp(),
-        });
-        toast("Order status updated", "success");
+        if (demoState) {
+          const target = demoState.orders.find((x) => x.id === orderId);
+          if (target) target.status = newStatus;
+          lastOrders = demoState.orders.slice();
+          renderOrders(lastOrders);
+          toast("Order status updated", "success");
+        } else {
+          await updateDoc(doc(db, "orders", orderId), {
+            status: newStatus,
+            updatedAt: serverTimestamp(),
+          });
+          toast("Order status updated", "success");
+        }
       } catch (err) {
         toast("Could not update status: " + err.message, "error");
       } finally {
@@ -1520,7 +1838,7 @@ function showOrderDetails(order) {
       <div class="cell-thumb">
         ${order.imageUrl
           ? `<img src="${escapeHtml(order.imageUrl)}" alt="" onerror="this.style.display='none'">`
-          : `<div class="thumb-placeholder">📱</div>`}
+          : `<div class="thumb-placeholder">${UI_ICONS.phone}</div>`}
       </div>
       <div>
         <div class="cell-title">${escapeHtml(order.modelName || "Device")}</div>
@@ -1959,9 +2277,15 @@ async function loadPricingRules() {
   host.innerHTML = `<p class="empty">Loading pricing rules…</p>`;
 
   try {
-    const snap = await getDocs(collection(db, "deduction_rules"));
     const found = new Map();
-    snap.forEach((d) => found.set(d.id, d.data() || {}));
+    if (demoState) {
+      for (const [id, data] of Object.entries(demoState.pricingRules)) {
+        found.set(id, data);
+      }
+    } else {
+      const snap = await getDocs(collection(db, "deduction_rules"));
+      snap.forEach((d) => found.set(d.id, d.data() || {}));
+    }
 
     const docs = [];
     const take = (id, known) => {
@@ -2646,7 +2970,7 @@ async function loadSecondHandListings() {
   const tbody = el("listings-tbody");
   tbody.innerHTML = `<tr><td colspan="5" class="empty">Loading…</td></tr>`;
   try {
-    let listings = cacheGet("listings");
+    let listings = demoState ? demoState.listings : cacheGet("listings");
     if (!listings) {
       const snap = await getDocs(query(collection(secondHandDb, "second_hand_mobiles"), limit(100)));
       listings = snap.docs.map((d) => d.data());
@@ -2663,7 +2987,7 @@ async function loadSecondHandListings() {
         <tr>
           <td class="cell-media">
             <div class="cell-thumb">
-              ${v.photo1Url ? `<img src="${escapeHtml(v.photo1Url)}" alt="" onerror="this.style.display='none'">` : `<div class="thumb-placeholder">📱</div>`}
+              ${v.photo1Url ? `<img src="${escapeHtml(v.photo1Url)}" alt="" onerror="this.style.display='none'">` : `<div class="thumb-placeholder">${UI_ICONS.phone}</div>`}
             </div>
           </td>
           <td class="cell-main">
@@ -2995,8 +3319,22 @@ async function loadChecklist() {
   if (checklistLoading) return;
   checklistLoading = true;
   try {
-    const snap = await getDoc(doc(db, "inspection_checklist", CHECKLIST_DOC));
-    const raw = snap.exists() ? snap.data()?.questions : [];
+    let raw = [];
+    if (demoState) {
+      raw = STANDARD_CHECKLIST.map((q) => ({
+        ...q,
+        options: q.options.map((o, idx) => {
+          const norm = normaliseOption(o);
+          return {
+            label: norm.label,
+            percent: idx === 0 ? 0 : idx * 6,
+          };
+        }),
+      }));
+    } else {
+      const snap = await getDoc(doc(db, "inspection_checklist", CHECKLIST_DOC));
+      raw = snap.exists() ? snap.data()?.questions : [];
+    }
     checklistQuestions = Array.isArray(raw)
       ? raw.map((q) => ({
           id: String(q?.id || ""),
@@ -3386,6 +3724,17 @@ function renderInspectors() {
 async function assignInspector(orderId, inspectorId) {
   const chosen = inspectors.find((i) => i.id === inspectorId);
   try {
+    if (demoState) {
+      const target = demoState.orders.find((x) => x.id === orderId);
+      if (target) {
+        target.inspectorId = inspectorId || undefined;
+        target.inspectorName = chosen ? chosen.name : undefined;
+      }
+      lastOrders = demoState.orders.slice();
+      renderOrders(lastOrders);
+      toast(chosen ? `Assigned to ${chosen.name}` : "Assignment cleared", "success");
+      return;
+    }
     await updateDoc(doc(db, "orders", orderId), {
       inspectorId: inspectorId || deleteField(),
       inspectorName: chosen ? chosen.name : deleteField(),
@@ -5477,3 +5826,168 @@ async function startWebPush(uid, collectionName) {
     console.warn("Web push unavailable:", err?.message || err);
   }
 }
+
+// ---------------------------------------------------------------------------
+// v10 UI Polish: Modal close buttons, Scroll-aware FAB, Keyboard shortcuts,
+// and Preview-only Demo Sandbox (localhost / *.e2b.app / ?demo= only)
+// ---------------------------------------------------------------------------
+
+el("model-modal-close")?.addEventListener("click", () => el("model-modal")?.close());
+el("variant-modal-close")?.addEventListener("click", () => el("variant-modal")?.close());
+el("rule-modal-close")?.addEventListener("click", () => el("rule-modal")?.close());
+
+const shortcutsModal = el("shortcuts-modal");
+el("shortcuts-btn")?.addEventListener("click", () => shortcutsModal?.showModal());
+el("shortcuts-modal-close")?.addEventListener("click", () => shortcutsModal?.close());
+el("shortcuts-modal-done")?.addEventListener("click", () => shortcutsModal?.close());
+
+el("listings-refresh")?.addEventListener("click", async () => {
+  if (!demoState) cacheRemove("listings");
+  await loadSecondHandListings();
+  toast("Listings refreshed", "success");
+});
+
+// Scroll-aware mobile FAB: only appears once the top "+ Add model" CTA leaves
+// the viewport, so it never collides with row Delete buttons on initial view.
+(() => {
+  const fab = el("fab-add-model");
+  const topCta = el("add-model-btn");
+  if (!fab || !topCta || typeof IntersectionObserver === "undefined") return;
+  const observer = new IntersectionObserver(
+    (entries) => {
+      const entry = entries[0];
+      const onCatalog = !el("tab-catalog")?.hidden;
+      fab.classList.toggle("fab--visible", onCatalog && !entry.isIntersecting);
+    },
+    { threshold: 0.1 }
+  );
+  observer.observe(topCta);
+})();
+
+// Keyboard shortcuts (power-user navigation; ignored while typing in inputs).
+document.addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const tag = (document.activeElement?.tagName || "").toLowerCase();
+  const typing =
+    tag === "input" ||
+    tag === "textarea" ||
+    tag === "select" ||
+    document.activeElement?.isContentEditable;
+  if (typing) return;
+
+  if (e.key === "t" || e.key === "T") {
+    e.preventDefault();
+    toggleTheme();
+    return;
+  }
+
+  // Remaining shortcuts apply once inside the app shell.
+  if (el("app-screen")?.hidden) return;
+
+  if (e.key === "?") {
+    e.preventDefault();
+    if (shortcutsModal && !shortcutsModal.open) shortcutsModal.showModal();
+    return;
+  }
+
+  if (e.key === "/") {
+    e.preventDefault();
+    const onOrders = !el("tab-orders")?.hidden;
+    const target = onOrders ? el("orders-search") : el("catalog-search");
+    if (target) {
+      target.focus();
+      target.select();
+    }
+    return;
+  }
+
+  if (currentRole === "admin" && /^[1-6]$/.test(e.key)) {
+    const tabMap = [
+      "tab-catalog",
+      "tab-orders",
+      "tab-pricing",
+      "tab-checklist",
+      "tab-staff",
+      "tab-listings",
+    ];
+    const tabId = tabMap[Number(e.key) - 1];
+    const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+    if (tabId && btn) {
+      e.preventDefault();
+      activateTab(tabId, btn);
+    }
+  }
+});
+
+// Preview-only Demo Sandbox — never shown in production Firebase deploys.
+function enterDemoMode(role = "admin") {
+  demoState = createDemoState();
+  currentRole = role;
+  el("login-error").hidden = true;
+  el("admin-email").textContent =
+    role === "inspector" ? "ravi.k@frenchmobiles.in" : "admin@frenchmobiles.in";
+
+  const rolePill = el("topbar-role-pill");
+  if (rolePill) rolePill.textContent = role === "inspector" ? "Inspector Demo" : "Admin Demo";
+
+  const switchBtn = el("demo-role-switch");
+  const switchLabel = el("demo-role-label");
+  if (switchBtn && switchLabel) {
+    switchBtn.hidden = false;
+    switchLabel.textContent = role === "inspector" ? "Admin view" : "Inspector view";
+  }
+
+  showApp();
+
+  if (role === "inspector") {
+    document.body.classList.add("role-inspector");
+    document.querySelectorAll(".tab-panel").forEach((p) => (p.hidden = true));
+    document.querySelectorAll(".tabs, .bottom-nav, #fab-add-model").forEach((n) => {
+      n.style.display = "none";
+    });
+    const inspPanel = el("tab-inspector");
+    if (inspPanel) inspPanel.hidden = false;
+    inspectorOrders = demoState.orders.filter(
+      (o) => o.inspectorId === "insp-ravi" && o.status !== "paid" && o.status !== "declined"
+    );
+    loadChecklist().then(() => renderInspectorJobs(inspectorOrders));
+    return;
+  }
+
+  document.body.classList.remove("role-inspector");
+  document.querySelectorAll(".tabs, .bottom-nav, #fab-add-model").forEach((n) => {
+    n.style.display = "";
+  });
+  const inspPanel = el("tab-inspector");
+  if (inspPanel) inspPanel.hidden = true;
+
+  // Populate demo catalog (default to Apple so top models are immediately rich)
+  const brandSel = el("brand-select");
+  if (brandSel) brandSel.value = "apple";
+  inspectors = demoState.inspectors.slice();
+  renderInspectors();
+  lastOrders = demoState.orders.slice();
+  renderOrders(lastOrders);
+  pricingDocs = null;
+  checklistQuestions = null;
+  loadModelsForSelectedBrand();
+  loadSecondHandListings();
+  activateTab("tab-catalog", document.querySelector('.tab-btn[data-tab="tab-catalog"]'));
+}
+
+if (isPreviewHost()) {
+  const demoBar = el("preview-demo-bar");
+  if (demoBar) demoBar.hidden = false;
+  el("demo-admin-btn")?.addEventListener("click", () => enterDemoMode("admin"));
+  el("demo-inspector-btn")?.addEventListener("click", () => enterDemoMode("inspector"));
+  el("demo-role-switch")?.addEventListener("click", () => {
+    enterDemoMode(currentRole === "inspector" ? "admin" : "inspector");
+  });
+
+  const autoRole = requestedDemoRole();
+  if (autoRole) {
+    // Allow initial DOM setup to settle before launching demo view.
+    queueMicrotask(() => enterDemoMode(autoRole));
+  }
+}
+

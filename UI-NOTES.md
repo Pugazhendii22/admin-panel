@@ -194,3 +194,71 @@ against the green primary fill.
 - Rendered pages: 22 screenshots re-taken at 1440 / 860 / 390 / 360 / 320px,
   no console errors.
 - `app.js`, `index.html` markup, tab order and every handler: untouched.
+
+---
+
+## v10 UI/UX Upgrade Pass (HTML + CSS + JS)
+
+Guided by the installed `ui-ux-pro-max`, `ponytail`, `frontend-design`, and
+`verification-before-completion` skills while keeping 100% of the zero-build
+architecture, dual-project Firebase logic, Firestore schemas, and inspector
+`[data-admin-only="1"]` DOM isolation intact.
+
+### What changed
+
+1. **Full Light + Dark Mode Token Parity (`style.css?v=10`, `index.html`, `app.js?v=9`)**
+   - Added a pre-paint theme script in `<head>` (no flash of wrong theme on reload)
+     and a theme toggle in both the login screen and app topbar (`T` shortcut,
+     persisted to `localStorage`, respects `prefers-color-scheme`).
+   - Calibrated `[data-theme="dark"]` slate palette (`#0B1120` ground, `#111A2E`
+     cards, `#22C55E` / `#4ADE80` accents, dark-calibrated status badges and SVG
+     section icons) to maintain WCAG AA contrast (≥ 4.5:1) across every view.
+2. **Operational KPI Strips, Live Search & Filter Chips**
+   - **Catalog:** Added a 4-card summary strip (*Models shown*, *Hidden in app*,
+     *Series groups*, *Top buyback quote* updated live as variant prices resolve),
+     a real-time model search box (`#catalog-search`, `/` shortcut), a *Reset
+     filters* action, and animated chevron + highlighted row state on expanded
+     *Variants* panels (`aria-expanded`).
+   - **Orders:** Added a 4-card interactive KPI strip (*Total loaded*, *Needs
+     action*, *In inspection*, *Completed payouts ₹*), wrap-safe status filter
+     chips with live counts (*All*, *Needs action*, *Order placed*, *Agent
+     assigned*, *Under inspection*, *Completed & paid*, *Declined*, *Unassigned*),
+     and live pending-action count badges in both the desktop sidebar rail and
+     mobile bottom bar.
+   - **Orders table ergonomics:** Separated the two stacked controls into clearly
+     labeled `Stage` and `Agent` dropdowns (`.order-controls`) and added a
+     one-click copy button next to each `FM-XXXXXX` reference code.
+3. **Resolved Previously Deferred Structural & Mobile Issues**
+   - Moved `#tab-staff`, `#tab-checklist`, and `#tab-inspector` inside
+     `<main class="content">` and updated `.staff-grid` accordingly.
+   - Replaced remaining emoji glyphs (`📱`, `📦`, `🧾`, `₹`, `✅`, `👥`, `🏷️`,
+     `ℹ️`) and raw ASCII button symbols (`+`, `↻`) with a unified 1.9px-stroke
+     inline SVG icon set (`UI_ICONS`), plus semantic icons in toast alerts
+     (`role="status"` `aria-live="polite"`).
+   - Made the mobile Catalog FAB scroll-aware via `IntersectionObserver` on
+     `#add-model-btn`, so it only slides in once the top CTA scrolls off screen
+     and never collides with row *Delete* buttons.
+   - Restored a compact `French Mobiles` brand title in the mobile topbar and
+     smoothed prose copy across tabs.
+4. **Power-User Ergonomics & Preview Sandbox**
+   - Added keyboard shortcuts (`/` search focus, `1`–`6` tab switching, `T` theme
+     toggle, `?` shortcuts dialog, `Esc` close dialog) and `scroll-padding-top`.
+   - Elevated the split login screen with operational highlights and added an
+     isolated `demo-data.js` interactive preview mode that appears **only** on
+     local/sandbox preview hosts (`localhost`, `*.e2b.app`, or `?demo=admin|inspector`),
+     staying completely inert in production Firebase deployments.
+   - Bumped `sw.js` cache key to `fm-admin-v10`.
+
+### Verification (Headless Chromium + Automated Audits)
+
+- `node --check app.js demo-data.js`: 0 syntax errors.
+- Static ID parity check across every `el("...")` in `app.js` vs `index.html`: 0 missing IDs.
+- Playwright visual + functional audit across desktop (`1440×900`) and mobile
+  (`390×844`), Light and Dark modes, Catalog, Orders, Order Details sheet,
+  Pricing rules, Staff, and Inspector views:
+  - 0 console errors, 0 uncaught page errors.
+  - `desktopOverflow: false`, `mobileOverflow: false`, `fabVisibleAtTop: false`.
+  - Verified live Catalog search/reset, Variant expansion (`aria-expanded="true"`),
+    Orders status chip filtering, live pending badge (`2`), Dark Mode toggle,
+    and `?`/`Esc` keyboard shortcut dialog.
+
