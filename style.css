@@ -1,34 +1,108 @@
-/* French Mobiles — Admin panel styling.
-   Colours match the Flutter app's design tokens
-   (lib/shared/theme/app_colors.dart) for visual continuity, even though
-   this is a completely separate codebase with no shared build.
+/* ===========================================================================
+   FRENCH MOBILES — ADMIN PANEL
+   ---------------------------------------------------------------------------
+   UI refresh. Styling only: no markup, no class names, no markup-driven
+   behaviour was changed, and nothing here is read by app.js. Every selector
+   the JS templates rely on still exists (see UI-NOTES.md for the checklist
+   that was run against app.js + index.html).
 
-   Layout is desktop-table / mobile-card: the same <table> markup becomes a
-   stack of cards under 720px, driven by each cell's data-label. */
+   Colours still come from the Flutter app's design tokens
+   (lib/shared/theme/app_colors.dart) — the brand green is the same green the
+   seller sees on their phone — but the greens, greys and radii are now a
+   tuned scale rather than one-off values.
+
+   Layout, top to bottom:
+     · desktop (>=960px)  — full-width top bar + a left nav rail
+     · tablet (721-959px) — top bar + horizontal tab bar
+     · phone  (<=720px)   — top bar + bottom nav, tables become cards
+   =========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   1. Tokens
+   --------------------------------------------------------------------------- */
 
 :root {
-  --primary: #32CD32;
-  --primary-dark: #28A428;
-  --primary-soft: #E8F9E8;
-  --on-primary-soft: #1B7A1B;
-  --bg: #F7F8F8;
+  /* Brand. `--primary` is a fill colour: dark ink sits on top of it, never
+     white (white on this green is ~2:1 and vanishes in daylight). */
+  --primary: #1FBF4B;
+  --primary-hover: #17A63F;
+  --primary-press: #128A34;
+  --primary-ink: #0B3D1D;
+  --primary-soft: #E9F9EE;
+  --primary-soft-2: #D5F3E0;
+  --on-primary: #05240F;
+  --on-primary-soft: #0F7A34;
+
+  /* Neutrals — cool, low-chroma, so the green is the only colour that shouts. */
+  --bg: #F4F6F8;
+  --bg-sunk: #EDF1F4;
   --surface: #FFFFFF;
-  --text: #1A1A1A;
-  --text-secondary: #6B7280;
-  --text-tertiary: #9CA3AF;
-  --border: #EEEEEE;
-  --border-strong: #E2E4E4;
-  --success: #22C55E;
-  --success-soft: #E7F8ED;
-  --warning: #F59E0B;
-  --warning-soft: #FEF3E2;
-  --error: #EF4444;
-  --error-soft: #FDECEC;
-  --radius: 14px;
+  --surface-2: #F7F9FA;
+  --text: #0E1721;
+  --text-secondary: #4E5A66;
+  --text-tertiary: #6B7785;
+  --border: #E4E8EC;
+  --border-strong: #D3DAE0;
+
+  /* States */
+  --success: #0E9159;
+  --success-soft: #E3F7ED;
+  --warning: #A96400;
+  --warning-soft: #FFF3DE;
+  --error: #D92D20;
+  --error-soft: #FEECEA;
+  --info: #2B57C7;
+  --info-soft: #EAF0FE;
+  --violet: #7335C4;
+  --violet-soft: #F3EBFD;
+
+  /* Radii */
+  --radius: 16px;
+  --radius-lg: 20px;
+  --radius-md: 12px;
   --radius-sm: 10px;
-  --shadow: 0 2px 10px rgba(0,0,0,0.06);
+  --radius-xs: 8px;
+  --radius-pill: 999px;
+
+  /* Elevation — two soft layers, never one dark blur. */
+  --shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.07), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-md: 0 8px 20px -6px rgba(16, 24, 40, 0.12), 0 2px 6px -2px rgba(16, 24, 40, 0.06);
+  --shadow-lg: 0 28px 56px -16px rgba(16, 24, 40, 0.24), 0 8px 20px -8px rgba(16, 24, 40, 0.10);
+  --ring: 0 0 0 3px rgba(31, 191, 75, 0.26);
+
+  /* Layout */
+  --rail: 240px;
+  --topbar-h: 64px;
+  --content-max: 1180px;
+
+  /* Motion */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --fast: 140ms;
+
+  /* Type */
+  --font: "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
   --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+
+  /* Section icons, drawn once as masks so they can inherit `currentColor`
+     instead of being 24 copies of the same SVG in the markup. */
+  --ic-catalog: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 8.5 12 3.5 3 8.5l9 5 9-5Z'/%3E%3Cpath d='M3 8.5v7l9 5 9-5v-7'/%3E%3Cpath d='M12 13.5v7'/%3E%3C/svg%3E");
+  --ic-orders: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 2.5h12a1 1 0 0 1 1 1v18l-3.5-2.2L12 21.5l-3.5-2.2L5 21.5v-18a1 1 0 0 1 1-1Z'/%3E%3Cpath d='M9 8h6M9 12h6'/%3E%3C/svg%3E");
+  --ic-pricing: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0l-7.2-7.2A2 2 0 0 1 3 12V5a2 2 0 0 1 2-2h7c.5 0 1 .2 1.4.6l7.2 7.2a2 2 0 0 1 0 2.6Z'/%3E%3Ccircle cx='8' cy='8' r='1.4'/%3E%3C/svg%3E");
+  --ic-checklist: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='16' rx='3'/%3E%3Cpath d='m8 12 2.5 2.5L16 9'/%3E%3C/svg%3E");
+  --ic-staff: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='9' cy='8' r='3.4'/%3E%3Cpath d='M2.8 20a6.2 6.2 0 0 1 12.4 0'/%3E%3Cpath d='M16.4 5.2a3.4 3.4 0 0 1 0 6.4M17.6 14.4A6.2 6.2 0 0 1 21.2 20'/%3E%3C/svg%3E");
+  --ic-listings: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cellipse cx='12' cy='6.5' rx='8.5' ry='3.2'/%3E%3Cpath d='M3.5 6.5v5c0 1.8 3.8 3.2 8.5 3.2s8.5-1.4 8.5-3.2v-5'/%3E%3Cpath d='M11 21h5a4 4 0 0 0 4-4'/%3E%3Ccircle cx='17.5' cy='19' r='2.2'/%3E%3C/svg%3E");
+  --ic-search: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.6-3.6'/%3E%3C/svg%3E");
+  --ic-empty: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 8.5 12 3.5l9 5v7l-9 5-9-5v-7Z'/%3E%3Cpath d='m3 8.5 9 5 9-5M12 13.5v7'/%3E%3C/svg%3E");
+  --ic-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 }
+
+/* ---------------------------------------------------------------------------
+   2. Base
+   --------------------------------------------------------------------------- */
 
 * { box-sizing: border-box; }
 
@@ -37,20 +111,1942 @@
    every `el.hidden = true` on a flex element silently does nothing. */
 [hidden] { display: none !important; }
 
+html { -webkit-text-size-adjust: 100%; }
+
 body {
   margin: 0;
-  /* Poppins, as in the phone app. The system stack is only the fallback for
-     a first load with no network, when the web font cannot arrive. */
-  font-family: "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: var(--bg);
-  color: var(--text);
+  min-height: 100vh;
+  font-family: var(--font);
   font-size: 14px;
-  line-height: 1.5;
-  -webkit-text-size-adjust: 100%;
+  line-height: 1.55;
+  color: var(--text);
+  background: var(--bg);
   -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* ---------- Login ---------- */
+h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.012em; text-wrap: balance; }
+p { text-wrap: pretty; }
+code {
+  font-family: var(--mono);
+  font-size: 0.92em;
+  background: var(--bg-sunk);
+  color: var(--text-secondary);
+  padding: 1px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+a { color: var(--on-primary-soft); }
+
+/* Numbers that get compared down a column line up. */
+.mono,
+td[data-label="Payout"],
+td[data-label="Price"],
+td.cell-price,
+.rule-pct__money,
+.inspection__amount,
+.flow__payout,
+.job__payout {
+  font-variant-numeric: tabular-nums;
+}
+
+:where(button, select, input, a):focus-visible {
+  outline: 2px solid var(--primary-hover);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------------
+   3. Type scale
+   (Named classes are used directly by the JS templates; keep the names.)
+   --------------------------------------------------------------------------- */
+
+.heading-5 { font-size: 1.5rem; line-height: 1.35; font-weight: 600; margin: 0; }
+.heading-6 { font-size: 1.25rem; line-height: 1.4; font-weight: 600; margin: 0; }
+.title-1 { font-size: 1.25rem; line-height: 1.5; font-weight: 500; }
+.title-2 { font-size: 1.125rem; line-height: 1.5; font-weight: 500; }
+.title-3 { font-size: 1rem; line-height: 1.5; font-weight: 500; }
+.body-4  { font-size: 0.875rem; line-height: 1.4; font-weight: 600; }
+.body-6  { font-size: 0.875rem; line-height: 1.4; font-weight: 400; }
+.button-md  { font-size: 1rem; line-height: 1.4; font-weight: 600; }
+.button-sm  { font-size: 0.875rem; line-height: 1.3; font-weight: 600; }
+.button-xsm { font-size: 0.75rem; line-height: 1.2; font-weight: 600; }
+.caption-2 { font-size: 0.875rem; line-height: 1.45; font-weight: 400; color: var(--text-secondary); margin: 0; }
+.caption-3 { font-size: 0.75rem; line-height: 1.3; font-weight: 600; color: var(--text-secondary); }
+.caption-4 { font-size: 0.75rem; line-height: 1.3; font-weight: 500; color: var(--text-secondary); }
+.caption-5 { font-size: 0.75rem; line-height: 1.3; font-weight: 400; color: var(--text-secondary); }
+
+/* ---------------------------------------------------------------------------
+   4. Shell — top bar, navigation, content
+   --------------------------------------------------------------------------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: var(--topbar-h);
+  padding: 12px 28px;
+  padding-top: calc(12px + var(--safe-t));
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+.topbar-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.topbar-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; }
+.topbar-right { display: flex; align-items: center; gap: 10px; min-width: 0; }
+
+.admin-email {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 240px;
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-email::before {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+/* Navigation: the rail is desktop-only, the bottom bar is phone-only. Each is
+   switched on in its own media block; both are off by default. */
+.bottom-nav { display: none; }
+.fab { display: none; }
+
+/* --- Navigation -------------------------------------------------------- */
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  padding: 8px 28px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: var(--topbar-h);
+  z-index: 20;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  flex: 0 0 auto;
+  padding: 9px 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.tab-btn:hover { background: var(--surface-2); color: var(--text); }
+.tab-btn--active {
+  background: var(--primary-soft);
+  border-color: var(--primary-soft-2);
+  color: var(--on-primary-soft);
+  font-weight: 600;
+}
+.tab-btn--active:hover { background: var(--primary-soft); color: var(--on-primary-soft); }
+
+/* The emoji still in the markup is the accessible label's decoration; it is
+   swapped for a crisp mask icon here so the rail keeps one icon language. */
+.tab-icon,
+.bottom-nav__icon {
+  display: inline-block;
+  flex: none;
+  width: 19px;
+  height: 19px;
+  font-size: 0;
+  line-height: 0;
+  color: inherit;
+  background-color: currentColor;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  opacity: 0.72;
+}
+.tab-btn--active .tab-icon,
+.bottom-nav__btn--active .bottom-nav__icon { opacity: 1; }
+
+[data-tab="tab-catalog"] .tab-icon,
+[data-tab="tab-catalog"] .bottom-nav__icon { -webkit-mask-image: var(--ic-catalog); mask-image: var(--ic-catalog); }
+[data-tab="tab-orders"] .tab-icon,
+[data-tab="tab-orders"] .bottom-nav__icon { -webkit-mask-image: var(--ic-orders); mask-image: var(--ic-orders); }
+[data-tab="tab-pricing"] .tab-icon,
+[data-tab="tab-pricing"] .bottom-nav__icon { -webkit-mask-image: var(--ic-pricing); mask-image: var(--ic-pricing); }
+[data-tab="tab-checklist"] .tab-icon,
+[data-tab="tab-checklist"] .bottom-nav__icon { -webkit-mask-image: var(--ic-checklist); mask-image: var(--ic-checklist); }
+[data-tab="tab-staff"] .tab-icon,
+[data-tab="tab-staff"] .bottom-nav__icon { -webkit-mask-image: var(--ic-staff); mask-image: var(--ic-staff); }
+[data-tab="tab-listings"] .tab-icon,
+[data-tab="tab-listings"] .bottom-nav__icon { -webkit-mask-image: var(--ic-listings); mask-image: var(--ic-listings); }
+
+.tab-label-short { display: none; }
+
+/* --- Content column ----------------------------------------------------- */
+
+/* Three of the tab panels (#tab-staff, #tab-checklist, #tab-inspector) sit
+   outside <main class="content"> in index.html, so they never picked up its
+   gutter — which is why those two tabs used to run edge to edge on a wide
+   screen. They get the identical box here instead. */
+.content,
+#tab-staff,
+#tab-checklist {
+  width: 100%;
+  max-width: var(--content-max);
+  margin-inline: auto;
+  padding: 28px 28px 80px;
+}
+
+.panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+.panel-header h2 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 6px;
+  font-size: 22px;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+/* Section mark, so each page opens with the same icon as its tab. */
+.panel-header h2::before {
+  content: "";
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  background-color: var(--primary-soft);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 20px 20px;
+  border: 1px solid var(--primary-soft-2);
+}
+#tab-catalog  .panel-header h2::before { background-image: var(--ic-catalog); }
+#tab-orders   .panel-header h2::before { background-image: var(--ic-orders); }
+#tab-pricing  .panel-header h2::before { background-image: var(--ic-pricing); }
+#tab-checklist .panel-header h2::before { background-image: var(--ic-checklist); }
+#tab-listings .panel-header h2::before { background-image: var(--ic-listings); }
+/* Emoji icons carry their own colour; these are stripped to a neutral ink. */
+#tab-catalog .panel-header h2::before,
+#tab-orders .panel-header h2::before,
+#tab-pricing .panel-header h2::before,
+#tab-checklist .panel-header h2::before,
+#tab-listings .panel-header h2::before { filter: none; }
+
+.panel-sub { margin: 0; max-width: 78ch; color: var(--text-secondary); font-size: 13.5px; line-height: 1.6; }
+
+/* The callout used for "this lives in another Firebase project" and the
+   custom-brand warning. Reads as a tinted note, not an alarm. */
+.warning-note {
+  position: relative;
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border-left: 3px solid var(--warning);
+  background: var(--warning-soft);
+  border: 1px solid rgba(169, 100, 0, 0.16);
+  border-radius: var(--radius-md);
+  color: #7A4B00;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.warning-note code { background: rgba(169, 100, 0, 0.12); color: #7A4B00; }
+
+.cache-note {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 16px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 500;
+}
+.cache-note:empty { display: none; }
+.cache-note::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 3px var(--success-soft);
+}
+.cache-note--stale::before { background: var(--text-tertiary); box-shadow: 0 0 0 3px var(--bg-sunk); }
+
+/* ---------------------------------------------------------------------------
+   5. Buttons
+   --------------------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 8px 16px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease),
+              box-shadow var(--fast) var(--ease), transform 90ms var(--ease), opacity var(--fast);
+}
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn--primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-ink);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+.btn--primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
+.btn--primary:active:not(:disabled) { background: var(--primary-press); border-color: var(--primary-press); }
+
+.btn--ghost {
+  background: var(--surface);
+  border-color: var(--border-strong);
+  color: var(--text-secondary);
+}
+.btn--ghost:hover:not(:disabled) { background: var(--surface-2); border-color: var(--text-tertiary); color: var(--text); }
+
+.btn--danger {
+  background: var(--error-soft);
+  border-color: rgba(217, 45, 32, 0.18);
+  color: var(--error);
+}
+.btn--danger:hover:not(:disabled) { background: var(--error); border-color: var(--error); color: #fff; }
+
+.btn--full { width: 100%; min-height: 44px; font-size: 14px; }
+.btn--small { min-height: 32px; padding: 6px 12px; font-size: 12.5px; }
+.btn--tiny {
+  min-height: 28px;
+  padding: 4px 9px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.btn--tiny:hover:not(:disabled) { background: var(--surface); border-color: var(--border-strong); color: var(--text); }
+.btn--tiny.btn--danger { background: var(--error-soft); border-color: rgba(217, 45, 32, 0.16); color: var(--error); }
+.btn--tiny.btn--danger:hover:not(:disabled) { background: var(--error); border-color: var(--error); color: #fff; }
+
+/* The one button both step-by-step flows use. */
+.btn-flow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 10px 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background var(--fast) var(--ease), opacity var(--fast) var(--ease),
+              transform 90ms var(--ease);
+}
+.btn-flow:hover:not(:disabled) { background: var(--surface-2); }
+.btn-flow:active:not(:disabled) { transform: scale(0.99); }
+.btn-flow:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-flow--primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-ink);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+.btn-flow--primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
+
+.install-btn {
+  padding: 7px 14px;
+  border: 1px solid var(--primary-soft-2);
+  border-radius: var(--radius-pill);
+  background: var(--primary-soft);
+  color: var(--on-primary-soft);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.install-btn:hover { background: var(--primary-soft-2); }
+
+/* ---------------------------------------------------------------------------
+   6. Forms
+   --------------------------------------------------------------------------- */
+
+.field { display: block; margin-bottom: 16px; }
+.field > span,
+.field > label > span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.field em { font-style: normal; font-weight: 400; color: var(--text-tertiary); }
+
+.field input,
+.field select,
+.field textarea,
+.staff-form input,
+.variant-add-form input,
+.rule-row input,
+.rule-row select,
+.status-select,
+.assign-select,
+.inspection__amount,
+.inspection__reason,
+.ck-opt__text,
+.ck-opt__pctinput,
+.spec-suggest__price {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.4;
+  transition: border-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
+}
+.field input::placeholder,
+.field textarea::placeholder,
+.staff-form input::placeholder,
+.variant-add-form input::placeholder,
+.inspection__reason::placeholder { color: var(--text-tertiary); }
+
+.field input:hover:not(:focus),
+.field select:hover:not(:focus) { border-color: var(--text-tertiary); }
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus,
+.staff-form input:focus,
+.variant-add-form input:focus,
+.rule-row input:focus,
+.rule-row select:focus,
+.status-select:focus,
+.assign-select:focus,
+.inspection__amount:focus,
+.inspection__reason:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: var(--ring);
+}
+.field input:disabled,
+.field select:disabled { background: var(--surface-2); color: var(--text-tertiary); }
+
+/* Native select chrome is inconsistent across platforms; the chevron is
+   drawn once so every dropdown in the panel matches. */
+select,
+.status-select,
+.assign-select,
+.rule-row select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 34px;
+  background-image: var(--ic-chevron);
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+  background-size: 12px 12px;
+  cursor: pointer;
+}
+
+input[type="search"] {
+  background-image: var(--ic-search);
+  background-repeat: no-repeat;
+  background-position: 13px center;
+  background-size: 16px 16px;
+  padding-left: 39px;
+}
+input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
+
+.field--inline { display: flex; flex-direction: column; margin-bottom: 0; min-width: 170px; }
+.field--grow { flex: 1 1 auto; min-width: 240px; }
+.field--tight { margin-bottom: 0; min-width: 138px; }
+.field--tight > span { margin-bottom: 5px; }
+
+.field-help {
+  margin: 0 0 16px;
+  padding: 11px 14px;
+  border-left: 3px solid var(--border-strong);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.65;
+}
+.field-help strong { color: var(--text); font-weight: 600; }
+.field + .field-help { margin-top: -10px; }
+
+/* Password reveal: typing a password blind on a phone keyboard is the single
+   most common reason a correct password gets rejected. */
+.field-with-affix { position: relative; display: block; }
+.field-with-affix input { padding-right: 66px; }
+.pwd-toggle {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  right: 4px;
+  min-width: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.pwd-toggle:hover { background: var(--surface-2); color: var(--text); }
+
+/* Storage quick-picks in the variant modal. 34px tall on purpose: full-size
+   buttons here would push the price field below the fold on a phone. */
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 14px; }
+.chip {
+  min-height: 34px;
+  padding: 8px 12px;
+  border: 1px solid var(--primary-soft-2);
+  border-radius: var(--radius-pill);
+  background: var(--primary-soft);
+  color: var(--on-primary-soft);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+.chip:hover { border-color: var(--primary); background: var(--primary-soft-2); }
+.chip:active { background: var(--primary); color: var(--primary-ink); }
+
+/* ---------------------------------------------------------------------------
+   7. Surfaces
+   --------------------------------------------------------------------------- */
+
+.card {
+  position: relative;
+  margin-bottom: 20px;
+  padding: 22px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-xs);
+}
+.card > h2 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.card > .cell-sub { margin-bottom: 16px; }
+.card > h2 + .cell-sub + .staff-form { margin-top: 4px; }
+
+.cell-title { font-weight: 600; color: var(--text); }
+.cell-sub { color: var(--text-tertiary); font-size: 12.5px; margin-top: 2px; line-height: 1.45; }
+
+/* Icons the JS injects carry their own width/height; they must never shrink. */
+.btn svg, .btn-flow svg, .flow__back svg, .flow__links svg { flex: none; }
+
+/* ---------------------------------------------------------------------------
+   8. Toolbar (filters + page actions)
+   --------------------------------------------------------------------------- */
+
+.toolbar {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-xs);
+}
+.toolbar .field { margin-bottom: 0; }
+.toolbar .field--grow { flex: 1 1 260px; }
+.toolbar > .btn { margin-bottom: 1px; }
+.toolbar > #add-model-btn { margin-left: auto; }
+#custom-brand-row { flex: 1 1 200px; }
+#custom-brand-row label { display: block; }
+#custom-brand-row span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* The pricing screen and the checklist editor use a plainer action row with
+   no filter fields in it. */
+.pricing-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 18px;
+}
+.pricing-toolbar .btn:first-child { margin-left: 0; }
+
+/* ---------------------------------------------------------------------------
+   9. Tables
+   --------------------------------------------------------------------------- */
+
+.table-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+}
+table { width: 100%; border-collapse: collapse; }
+
+thead th {
+  padding: 11px 16px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-tertiary);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  text-align: left;
+  white-space: nowrap;
+}
+thead th:last-child { text-align: right; }
+
+tbody td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr { transition: background var(--fast) var(--ease); }
+tbody tr:hover { background: var(--surface-2); }
+
+/* An order reference is read out loud, so it must never wrap mid-code. */
+tbody td.mono { white-space: nowrap; color: var(--text-secondary); font-size: 12px; }
+/* The last column's header is right-aligned, so the cells whose table has no
+   action column line up with it. (Not a blanket `td:last-child`: inside an
+   expanded variant panel that would right-align the whole panel.) */
+td[data-label="Original"] { text-align: right; }
+td[data-label="Placed"] { white-space: nowrap; }
+.variant-row td { text-align: left; }
+
+/* The catalog has one wide column (the model) and three narrow ones; without
+   this the browser gives the empty action header half the table. */
+#tab-catalog thead th:nth-child(4) { width: 96px; }
+#tab-catalog thead th:nth-child(5) { width: 1%; }
+
+.cell-actions { white-space: nowrap; text-align: right; }
+.cell-actions .btn + .btn { margin-left: 6px; }
+.cell-actions .btn[data-action="variants"] {
+  background: var(--primary-soft);
+  border-color: var(--primary-soft-2);
+  color: var(--on-primary-soft);
+}
+.cell-actions .btn[data-action="variants"]:hover { background: var(--primary-soft-2); }
+.cell-actions .btn[data-action="delete-model"] {
+  background: transparent;
+  border-color: transparent;
+  color: var(--error);
+}
+.cell-actions .btn[data-action="delete-model"]:hover { background: var(--error-soft); }
+
+.cell-thumb {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.cell-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.thumb-placeholder { font-size: 18px; opacity: 0.35; }
+
+.empty {
+  padding: 44px 20px;
+  color: var(--text-tertiary);
+  font-size: 13.5px;
+  text-align: center;
+  line-height: 1.6;
+}
+.empty::before {
+  content: "";
+  display: block;
+  width: 34px;
+  height: 34px;
+  margin: 0 auto 12px;
+  background-color: var(--border-strong);
+  -webkit-mask: var(--ic-empty) center / 100% 100% no-repeat;
+  mask: var(--ic-empty) center / 100% 100% no-repeat;
+}
+.empty .cell-sub,
+.empty div.cell-sub { display: block; margin-top: 6px; max-width: 46ch; margin-inline: auto; }
+.empty--error { color: var(--error); }
+.empty--error::before { background-color: var(--error); opacity: 0.45; }
+
+/* Price / payout: the number that decides the conversation. */
+tbody td[data-label="Payout"],
+tbody td[data-label="Price"],
+tbody td.cell-price {
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------------
+   10. Tags & badges
+   --------------------------------------------------------------------------- */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+}
+.badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.85;
+}
+.badge--success { background: var(--success-soft); color: var(--success); }
+.badge--warning { background: var(--warning-soft); color: var(--warning); }
+
+/* Order status. The five values the app itself understands. */
+.badge--status-placed { background: var(--info-soft); color: var(--info); }
+.badge--status-agent_assigned { background: var(--warning-soft); color: var(--warning); }
+.badge--status-inspection { background: var(--violet-soft); color: var(--violet); }
+.badge--status-paid { background: var(--success-soft); color: var(--success); }
+.badge--status-declined { background: var(--error-soft); color: var(--error); }
+
+.hidden-tag,
+.series-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.hidden-tag { background: var(--warning-soft); color: var(--warning); }
+.series-tag { background: var(--surface-2); color: var(--text-secondary); border: 1px solid var(--border); }
+
+/* ---------------------------------------------------------------------------
+   11. Variant panel (expanded row inside the catalog table)
+   --------------------------------------------------------------------------- */
+
+.variant-row td { padding: 0; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+.variant-row:hover td { background: var(--surface-2); }
+
+.variant-row td { text-align: left; }
+.variant-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 20px 18px 78px;
+}
+.variant-panel > .variant-list,
+.variant-panel > .spec-suggest { width: 100%; }
+.variant-panel > .variant-list { margin-bottom: 0; }
+.variant-panel > [data-add-variant] { align-self: flex-start; }
+.variant-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.variant-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.variant-storage { min-width: 110px; font-weight: 600; font-size: 13.5px; }
+.variant-price {
+  flex: 1 1 auto;
+  color: var(--on-primary-soft);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+/* `.variant-count` is the table cell itself, not a chip inside one. */
+.variant-count {
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.variant-add-form { display: flex; flex-wrap: wrap; gap: 8px; }
+.variant-add-form input { width: auto; }
+.variant-add-form input[name="storage"] { flex: 1 1 170px; min-width: 150px; }
+.variant-add-form input[name="base_price"] { flex: 0 1 140px; }
+.variant-add-form .btn { flex: none; }
+
+/* Storage options the phone shipped with, offered with a price box each. */
+.spec-suggest {
+  margin: 0;
+  padding: 14px;
+  background: var(--primary-soft);
+  border: 1px solid var(--primary-soft-2);
+  border-radius: var(--radius-md);
+}
+.spec-suggest__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: var(--on-primary-soft);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.spec-suggest__row { display: flex; align-items: center; gap: 10px; max-width: 560px; margin-bottom: 8px; }
+.spec-suggest__row:last-child { margin-bottom: 0; }
+.spec-suggest__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.spec-suggest__price { flex: 0 0 100px; width: 100px; min-height: 36px; padding: 6px 10px; font-size: 13px; }
+
+/* ---------------------------------------------------------------------------
+   12. Pricing rules
+   --------------------------------------------------------------------------- */
+
+.rule-card {
+  margin-bottom: 16px;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-xs);
+}
+.rule-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.rule-head h3 {
+  margin: 0 0 3px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.rule-head h3 .badge { margin-left: 8px; vertical-align: 1px; }
+.rule-head code { font-size: 11px; }
+.rule-head__actions { display: flex; flex: 0 0 auto; gap: 8px; }
+
+/* Where this rule lands in the app — the question anyone has while changing a
+   number that moves money. */
+.rule-used { margin: 7px 0 0; max-width: 72ch; color: var(--text-secondary); font-size: 12.5px; line-height: 1.6; }
+
+.rule-rows { display: flex; flex-direction: column; gap: 8px; }
+
+.rule-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 12px;
+  background: var(--surface-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  transition: border-color var(--fast) var(--ease), background var(--fast) var(--ease);
+}
+.rule-row:focus-within { background: var(--surface); border-color: var(--primary-soft-2); }
+.rule-row__fields {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+}
+.rule-row__move { display: flex; flex: 0 0 auto; align-self: flex-end; gap: 5px; padding-bottom: 3px; }
+
+/* A percentage and what it is worth, side by side: a shop owner prices in
+   rupees, and "11% of a phone" is not a figure anyone holds in their head. */
+.rule-pct { display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* `min-width: 0` twice over: a bare <input> refuses to shrink below its
+   intrinsic size, which pushed this row 60px past a 390px phone screen. */
+.rule-pct input { width: 92px; min-width: 0; }
+.rule-pct__money {
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--primary-soft);
+  color: var(--on-primary-soft);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.rule-worst {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 14px 0 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.rule-worst strong { color: var(--text); font-weight: 700; }
+.rule-worst--over { background: var(--warning-soft); color: #7A4B00; }
+.rule-worst--over strong { color: #7A4B00; }
+
+.rule-divider { margin: 34px 0 16px; padding-top: 22px; border-top: 1px solid var(--border-strong); }
+.rule-divider h3 {
+  margin: 0 0 6px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.rule-divider p { margin: 0; max-width: 80ch; }
+
+.rule-row--wide { align-items: flex-start; }
+.rule-scrap__scope { flex-basis: 100%; margin: 0; }
+
+/* ---------------------------------------------------------------------------
+   13. Inspection checklist editor
+   --------------------------------------------------------------------------- */
+
+.ck-card {
+  margin-bottom: 12px;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-xs);
+}
+
+.ck-qhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.ck-qnum {
+  padding: 4px 11px;
+  border-radius: var(--radius-pill);
+  background: var(--primary-soft);
+  color: var(--on-primary-soft);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.ck-qid { color: var(--text-tertiary); font-size: 11.5px; }
+.ck-qid code { font-size: 11px; }
+
+.ck-head__fields { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 4px; }
+.ck-head__fields .field { margin-bottom: 8px; }
+
+/* The rule that answer 1 is the clean one, said in the margin of every
+   question rather than in a paragraph nobody rereads. */
+.ck-clean-note,
+.ck-zero-note {
+  margin: 0 0 10px;
+  padding: 7px 11px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.ck-zero-note { background: var(--warning-soft); color: #7A4B00; font-weight: 600; }
+
+.ck-opts { margin: 10px 0 6px; }
+
+.ck-opt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+.ck-opt:hover { background: var(--surface-2); }
+.ck-opt--clean { background: var(--success-soft); border-color: rgba(14, 145, 89, 0.18); }
+.ck-opt--clean:hover { background: var(--success-soft); }
+
+.ck-opt__n {
+  /* "1/2" on one line: a grid here stacks the number and the <small>
+     denominator on top of each other. */
+  display: inline-flex;
+  flex: none;
+  align-items: baseline;
+  justify-content: center;
+  width: auto;
+  min-width: 30px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-tertiary);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.ck-opt--clean .ck-opt__n { background: #fff; border-color: rgba(14, 145, 89, 0.3); color: var(--success); }
+.ck-opt__n small { font-size: 9px; font-weight: 600; opacity: 0.65; }
+.ck-opt__n--clean { background: #fff; border-color: rgba(14, 145, 89, 0.3); color: var(--success); }
+
+.ck-opt__text { flex: 1 1 200px; min-width: 0; min-height: 36px; padding: 6px 10px; font-size: 13px; }
+.ck-opt__pct { display: flex; flex: none; align-items: center; gap: 3px; color: var(--text-tertiary); font-size: 11.5px; }
+.ck-opt__pctinput {
+  width: 58px;
+  min-height: 36px;
+  padding: 6px;
+  border-radius: var(--radius-xs);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+}
+.ck-opt__pctinput:disabled { background: var(--surface-2); color: var(--text-tertiary); }
+.ck-pct--zero { border-color: var(--error) !important; background: var(--error-soft) !important; color: var(--error); }
+
+.ck-opt__move { display: inline-flex; flex: none; gap: 5px; margin-left: auto; }
+.ck-opt__move .btn--tiny { min-height: 30px; padding: 4px 9px; font-size: 11.5px; }
+.ck-opt__clean-tag { flex: 1 1 100%; color: var(--success); font-size: 11px; font-weight: 600; }
+
+/* Moving the whole question, in one labelled place. */
+.ck-qmove {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border-strong);
+}
+.ck-qmove__label { margin-right: auto; color: var(--text-secondary); font-size: 12px; font-weight: 600; }
+.ck-move-btn { min-height: 34px; padding: 6px 12px; font-size: 12.5px; white-space: nowrap; }
+
+@keyframes ck-flash {
+  0% { outline: 3px solid var(--primary); outline-offset: 2px; }
+  100% { outline: 3px solid transparent; outline-offset: 2px; }
+}
+.ck-flash { animation: ck-flash 1.4s var(--ease); border-radius: var(--radius-sm); }
+
+/* ---------------------------------------------------------------------------
+   14. Staff
+   --------------------------------------------------------------------------- */
+
+/* The checklist tab wraps its list in a card of its own; each question is
+   already a card, so the wrapper steps back to being a plain section. */
+.card:has(#checklist-list) {
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+.card:has(#checklist-list) > h2 { font-size: 22px; letter-spacing: -0.02em; margin-bottom: 6px; }
+.card:has(#checklist-list) > .cell-sub { max-width: 78ch; font-size: 13.5px; margin-bottom: 10px; }
+
+.staff-form { display: grid; gap: 12px; max-width: 440px; }
+.staff-form .field { margin-bottom: 0; }
+
+.staff-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.staff-item:last-child { border-bottom: 0; padding-bottom: 0; }
+.staff-item > .cell-main--full { flex: 1 1 auto; min-width: 0; }
+.staff-item .cell-title { font-size: 14px; }
+.staff-item .cell-sub { font-size: 12.5px; }
+
+/* ---------------------------------------------------------------------------
+   15. Dialogs & modals
+   --------------------------------------------------------------------------- */
+
+.modal {
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  color: var(--text);
+}
+.modal::backdrop { background: rgba(10, 20, 28, 0.42); backdrop-filter: blur(2px); }
+.modal[open] { animation: modal-in 220ms var(--ease); }
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.99); }
+  to { opacity: 1; transform: none; }
+}
+
+.modal-card { width: 400px; max-width: 100%; padding: 26px; }
+.modal-card h3 { margin: 0 0 20px; font-size: 18px; letter-spacing: -0.015em; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+.modal-actions .btn { min-height: 42px; padding: 9px 18px; font-size: 13.5px; }
+
+/* ---------------------------------------------------------------------------
+   16. Order details sheet
+   --------------------------------------------------------------------------- */
+
+.modal--sheet {
+  width: 580px;
+  max-width: calc(100vw - 32px);
+  height: min(780px, calc(100dvh - 48px));
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+}
+.modal--sheet[open] { display: flex; animation: modal-in 260ms var(--ease); }
+.modal--sheet .modal-card {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: auto;
+  min-height: 0;
+  padding: 0;
+}
+
+.od { background: var(--surface); }
+
+.od__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 22px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.modal--sheet .od__bar h3 { margin: 0; font-size: 17px; letter-spacing: -0.015em; }
+.od__close {
+  min-height: 36px;
+  padding: 7px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.od__close:hover { background: var(--surface-2); color: var(--text); }
+
+.od__body {
+  flex: 1;
+  min-height: 0;
+  padding: 16px 22px 22px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-size: 13.5px;
+  line-height: 1.5;
+  background: var(--surface);
+}
+
+.detail-list { font-size: 13.5px; }
+
+.detail-device {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.detail-device .cell-thumb { width: 54px; height: 54px; }
+.detail-device .cell-title { font-size: 16px; letter-spacing: -0.01em; }
+
+.detail-heading {
+  margin: 20px 0 2px;
+  color: var(--text-tertiary);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.detail-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.detail-row .k { flex: 1 1 auto; min-width: 0; color: var(--text-secondary); }
+.detail-row .v { flex: 0 1 auto; font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+.detail-row--deduction .k em {
+  display: block;
+  margin-top: 1px;
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+  font-style: normal;
+}
+.detail-row--deduction .v { white-space: nowrap; }
+.detail-minus { color: var(--error); }
+.detail-row--deduction .k em.detail-measured { font-variant-numeric: tabular-nums; }
+.detail-row--deduction .k em.detail-measured--off,
+.job-detail__measured--off { color: var(--error); }
+
+.detail-row--total {
+  align-items: center;
+  margin-top: 4px;
+  padding: 14px 0 4px;
+  border-top: 2px solid var(--text);
+  border-bottom: none;
+}
+.detail-row--total .k { color: var(--text); font-weight: 700; }
+.detail-row--total .v { color: var(--on-primary-soft); font-size: 19px; font-weight: 700; }
+
+.detail-note {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft);
+  color: #7A4B00;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.detail-address {
+  margin: 8px 0 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  line-height: 1.55;
+}
+
+/* The steps, as a row that scrolls sideways on a narrow phone and stays put
+   while the step under it scrolls. */
+.od__tabs {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  gap: 8px;
+  margin: 0 -22px;
+  padding: 12px 22px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.od__tabs::-webkit-scrollbar { display: none; }
+.od__tab {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 7px 13px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+.od__tab:hover { background: var(--surface-2); }
+.od__n {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 600;
+}
+.od__tab.is-current { background: var(--primary-soft); border-color: var(--primary-soft-2); color: var(--on-primary-soft); }
+.od__tab.is-current .od__n { background: var(--primary); border-color: var(--primary); color: var(--primary-ink); }
+
+.od__panel { display: flex; flex-direction: column; gap: 12px; animation: flow-in 320ms var(--ease); }
+.od__panel .detail-heading:first-child { margin-top: 0; }
+.od__panel .detail-row { padding: 11px 0; margin: 0; }
+.od__panel .job-detail { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-md); }
+.od__panel .job-note { margin: 0; border-radius: var(--radius-md); padding: 12px; }
+
+.od__foot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 10px;
+  padding: 14px 22px calc(14px + var(--safe-b));
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+/* ---------------------------------------------------------------------------
+   17. Pickups, job cards and the step-by-step inspector flow
+   --------------------------------------------------------------------------- */
+
+.pickups {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 28px 20px calc(28px + var(--safe-b));
+}
+.pickups__head { margin-bottom: 18px; }
+.pickups__head .caption-2 { margin-top: 4px; }
+#tab-inspector.is-flow .pickups__head { display: none; }
+
+#inspector-list { display: flex; flex-direction: column; gap: 12px; }
+#inspector-list > .empty { margin: 0; }
+
+.job {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-xs);
+}
+.job__top,
+.job__main { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.job__main { align-items: flex-start; }
+.job__device { min-width: 0; }
+.job__payout,
+.flow__payout { flex: none; font-size: 1.25rem; font-weight: 600; }
+.job__address { overflow-wrap: anywhere; }
+
+.job-card__who { margin-top: 6px; font-weight: 600; }
+.job-card__address {
+  margin: 4px 0 6px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+/* What an agent needs before knocking: which phone the tests ran on, whether
+   it switches on, whether the quote still stands. Three tones, and the quiet
+   one is deliberate — "could not be tied to this phone" is the ordinary case
+   on Android and must not read as an accusation. */
+.job-note {
+  display: block;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+.job-note strong { display: block; font-weight: 600; }
+.job-note .cell-sub { display: block; }
+.job-note--warn { background: var(--warning-soft); border-color: rgba(169, 100, 0, 0.16); }
+.job-note--warn strong { color: #7A4B00; }
+.job-note--good { background: var(--success-soft); border-color: rgba(14, 145, 89, 0.16); }
+.job-note--good strong { color: var(--success); }
+.job-note--plain { background: var(--surface-2); }
+
+/* Recorded answers / measurements, inside a collapsible. */
+.job-detail {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.job-detail > summary {
+  padding: 8px 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.job-detail__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+.job-detail__what { min-width: 0; }
+.job-detail__what .cell-sub { display: block; }
+.job-detail__cost { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.job-detail__row--fault .job-detail__what { font-weight: 600; }
+.job-detail__row--fault .job-detail__cost { color: var(--error); font-weight: 600; }
+.job-detail__row--total { border-top: 1px solid var(--border-strong); font-weight: 600; }
+.job-detail__passed { padding-top: 6px; border-top: 1px solid var(--border); }
+.job-detail__measured { display: block; font-variant-numeric: tabular-nums; }
+.job-detail__measured strong { color: var(--text-secondary); font-weight: 600; }
+.job-detail__measured--off,
+.job-detail__measured--off strong { color: var(--error); }
+
+/* The agent's defect checklist: two buttons a row, because it is answered
+   standing up, one handed, in somebody's doorway. */
+.check-group {
+  margin: 18px 0 4px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.check {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.check__what { min-width: 0; font-size: 14px; }
+.check__what .cell-sub { display: block; }
+.check--fault .check__what { font-weight: 600; }
+.check__declared {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  background: var(--warning-soft);
+  color: #7A4B00;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.check__answer { display: flex; flex: none; gap: 6px; }
+.check__btn {
+  min-width: 58px;
+  min-height: 36px;
+  padding: 7px 13px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+.check__btn:hover:not(.is-on) { border-color: var(--text-tertiary); color: var(--text); }
+.check__btn--pass.is-on { background: var(--success-soft); border-color: var(--success); color: var(--success); }
+.check__btn--fail.is-on { background: var(--error-soft); border-color: var(--error); color: var(--error); }
+/* Dashed, never filled: a suggestion must not look like an answer somebody
+   gave. The whole point of the list is that an agent looked. */
+.check__btn.is-suggested { border-style: dashed; border-color: var(--warning); color: #7A4B00; }
+
+/* The inspector's own checklist questions (one answer picked per question). */
+.ck-row { padding: 12px 0; border-top: 1px solid var(--border); }
+.ck-row--fault .ck-row__q { color: var(--error); }
+.ck-row__q { margin-bottom: 8px; font-size: 14px; font-weight: 600; line-height: 1.45; }
+.ck-row__q .cell-sub { display: block; font-weight: 400; }
+.ck-row__opts { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.ck-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 13px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+.ck-pick:hover:not(.is-on) { border-color: var(--text-tertiary); color: var(--text); }
+.ck-pick.is-on { background: var(--error-soft); border-color: var(--error); color: var(--error); font-weight: 600; }
+/* The clean answer selected is good news, not a finding. */
+.ck-pick--clean.is-on { background: var(--success-soft); border-color: var(--success); color: var(--success); }
+.ck-pick__label { flex: 1 1 auto; min-width: 0; text-align: left; }
+
+/* The price pill: what this answer costs, in % and rupees. */
+.ck-pick__pct {
+  display: inline-flex;
+  flex: none;
+  align-items: baseline;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--error-soft);
+  color: var(--error);
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ck-pick__money { font-size: 11px; font-weight: 600; opacity: 0.85; }
+.ck-pick__pct--clean { background: var(--success-soft); color: var(--success); }
+.ck-pick__pct--zero { background: var(--surface-2); color: var(--text-tertiary); }
+.ck-pick.is-on .ck-pick__pct,
+.ck-pick--clean.is-on .ck-pick__pct--clean { background: #fff; }
+
+/* An answer with pictures: pictures side by side on top, words underneath. */
+.ck-pick--pic { flex-direction: column; align-items: stretch; min-height: 0; padding: 10px; }
+.ck-pick__pics { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+.ck-pick__img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  object-fit: cover;
+}
+.ck-pick__text { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; }
+.ck-pick--pic .ck-pick__pct { margin-left: auto; }
+
+/* What the findings come to, above the amount box. */
+.ck-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--warning-soft);
+  border: 1px solid rgba(169, 100, 0, 0.16);
+  color: #7A4B00;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.inspection__faults { margin-top: 6px; color: var(--error); font-weight: 600; }
+.inspection__faults:empty { display: none; }
+
+/* Confirming the amount at the door. */
+.inspection {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  background: var(--primary-soft);
+  border: 1px solid var(--primary-soft-2);
+}
+.inspection--done { background: var(--success-soft); border-color: rgba(14, 145, 89, 0.18); }
+.inspection__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: var(--on-primary-soft);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.inspection--done .inspection__head { color: var(--success); }
+.inspection__row { display: flex; gap: 8px; margin-bottom: 8px; }
+.inspection__amount {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 46px;
+  font-size: 1rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.inspection__reason { min-height: 42px; margin-bottom: 8px; border-color: var(--warning); font-size: 0.9rem; }
+.inspection__verdict {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--on-primary-soft);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.inspection__verdict--no { background: var(--error-soft); color: var(--error); }
+
+/* --- the flow itself ----------------------------------------------------- */
+
+.flow {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  scroll-margin-top: 110px;
+}
+.flow__top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.flow__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 10px 0 0;
+  border: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.flow__device {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-xs);
+}
+
+.stepper { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+.stepper__item { min-width: 0; }
+.stepper__btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 58px;
+  padding: 6px 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+.stepper__dot {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 600;
+  transition: transform 300ms var(--ease), background var(--fast) var(--ease);
+}
+.stepper__btn.is-done .stepper__dot {
+  background: var(--primary-soft);
+  border-color: var(--primary-soft-2);
+  color: var(--on-primary-soft);
+}
+.stepper__btn.is-current .stepper__dot {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-ink);
+  transform: scale(1.08);
+}
+.stepper__label { font-size: 11.5px; font-weight: 500; color: var(--text-tertiary); }
+.stepper__btn.is-current .stepper__label { color: var(--text); font-weight: 600; }
+.stepper__btn.is-done .stepper__label { color: var(--text-secondary); }
+
+.flow__panel { display: flex; flex-direction: column; gap: 12px; animation: flow-in 380ms var(--ease); }
+@keyframes flow-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.flow__title { margin-bottom: 2px; }
+.flow__empty {
+  margin: 0;
+  padding: 32px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-secondary);
+  text-align: center;
+}
+.flow__card {
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-xs);
+}
+.flow__card .job-card__who { margin: 0; font-size: 1rem; }
+.flow__card .job-card__address { margin: 6px 0; color: var(--text); font-size: 1rem; }
+
+.flow__links { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+.flow__links .btn {
+  min-height: 48px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 15px;
+  text-decoration: none;
+}
+.flow__links .btn--primary { background: var(--primary); border-color: var(--primary); color: var(--primary-ink); }
+
+.flow__field { display: flex; flex-direction: column; gap: 6px; }
+.flow__field .status-select { min-height: 48px; border-radius: var(--radius-md); font-size: 15px; }
+
+.flow .job-note { margin: 0; padding: 12px; font-size: 0.875rem; }
+.flow .job-note:not(.job-note--warn):not(.job-note--good) { background: var(--surface); border: 1px solid var(--border); }
+.flow .job-detail,
+.od .job-detail { margin: 0; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.flow .job-detail > summary,
+.od .job-detail > summary {
+  padding: 0 0 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  list-style: none;
+}
+.flow .job-detail > summary::-webkit-details-marker,
+.od .job-detail > summary::-webkit-details-marker { display: none; }
+.flow .job-detail__row,
+.od .job-detail__row { padding: 10px 0; font-size: 0.875rem; }
+.flow .job-detail__cost,
+.od .job-detail__cost { max-width: 55%; font-weight: 500; text-align: right; }
+.flow .job-detail__row--fault .job-detail__cost,
+.od .job-detail__row--fault .job-detail__cost {
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  background: var(--error-soft);
+}
+
+/* One question on screen: progress bar and the prev/next pair. */
+.qnav { display: flex; flex-direction: column; gap: 8px; }
+.qnav__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.qnav__row > .caption-5 { min-width: 0; }
+.qnav__toggle {
+  min-height: 32px;
+  padding: 5px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.qnav__track { height: 6px; overflow: hidden; border-radius: var(--radius-pill); background: var(--bg-sunk); }
+.qnav__fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--primary);
+  transform-origin: left center;
+  transition: transform 500ms var(--ease);
+}
+.qnav__group { letter-spacing: 0.03em; text-transform: uppercase; }
+.qfoot { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+
+/* A question and its answers stacked, each answer a full-width button. */
+.flow .ck-row,
+.flow .check {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  padding: 16px 0 0;
+  border: none;
+  animation: flow-in 380ms var(--ease);
+}
+.flow .ck-row__q,
+.flow .check__what {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.flow .ck-row__q .cell-sub,
+.flow .check__what .cell-sub { margin-top: 4px; font-size: 0.875rem; line-height: 1.45; }
+.flow .check__declared { margin-top: 8px; }
+.flow .ck-row__opts { flex-direction: column; flex-wrap: nowrap; gap: 8px; }
+.flow .check__answer { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.flow .ck-pick,
+.flow .check__btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: 54px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 500;
+  transition: transform 160ms var(--ease), background var(--fast) var(--ease);
+}
+.flow .check__btn { justify-content: center; font-weight: 600; }
+.flow .ck-pick.is-on,
+.flow .check__btn.is-on { font-weight: 600; }
+.flow .ck-pick.is-on { color: var(--error); }
+.flow .ck-pick--clean.is-on { color: var(--success); }
+.flow .check__btn--pass.is-on { color: var(--success); }
+.flow .check__btn--fail.is-on { color: var(--error); }
+.flow .ck-pick__pct { padding: 5px 11px; font-size: 13.5px; }
+.flow .ck-pick__money { font-size: 12px; }
+
+.flow .ck-suggest { margin: 0; padding: 16px; font-size: 0.875rem; }
+.flow .ck-suggest .btn { min-height: 42px; border-radius: var(--radius-md); font-size: 0.875rem; }
+[data-pay-slot]:empty { display: none; }
+.flow .inspection { margin: 0; padding: 16px; border-radius: var(--radius); }
+.flow .inspection__head { font-size: 1rem; }
+.flow .inspection__row { flex-direction: column; gap: 8px; }
+.flow .inspection__amount { min-height: 64px; padding: 10px 16px; border-radius: var(--radius-md); font-size: 1.5rem; font-weight: 600; }
+.flow .inspection__reason { min-height: 48px; border-radius: var(--radius-md); font-size: 1rem; }
+.flow .inspection [data-confirm] {
+  min-height: 54px;
+  border-radius: var(--radius-md);
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-ink);
+  font-size: 1rem;
+  font-weight: 600;
+}
+.flow .inspection__verdict { border-radius: var(--radius-md); padding: 12px; }
+
+/* Back and Next, always under the thumb. Flat, in the page's own colour, so
+   it reads as part of the screen rather than a card laid over it. */
+.flow__bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 8px;
+  margin-top: 8px;
+  padding: 12px 0 calc(12px + var(--safe-b));
+  background: linear-gradient(to top, var(--bg) 72%, rgba(244, 246, 248, 0));
+}
+.flow__bar:has([data-job-next][hidden]) [data-job-prev] { grid-column: 1 / -1; }
+
+/* --- one-question-at-a-time plumbing --- */
+.flow .job-detail--checks > .job-detail__passed { padding: 0 0 12px; border: none; }
+.flow .check-group { margin: 24px 0 0; }
+.flow.is-single .job-detail--checks > summary,
+.flow.is-single .job-detail--checks > .job-detail__passed { display: none; }
+.flow.is-single .ck-row,
+.flow.is-single .check { padding-top: 0; }
+
+/* The step is already titled "Confirm the amount"; the block's own heading
+   says it a second time. Kept once a finding is filed, where it carries the
+   settled figure. */
+.flow .inspection:not(.inspection--done) .inspection__head { display: none; }
+
+/* With every panel inside it hidden, `.content` is 74px of padding around
+   nothing: a blank band above the inspector's screen. */
+.content:not(:has(> .tab-panel:not([hidden]))) { display: none; }
+
+/* ---------------------------------------------------------------------------
+   18. Toasts
+   --------------------------------------------------------------------------- */
+
+.toast-host {
+  position: fixed;
+  right: 22px;
+  bottom: calc(22px + var(--safe-b));
+  left: auto;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+.toast {
+  max-width: 360px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  background: #16212B;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 220ms var(--ease), transform 220ms var(--ease);
+}
+.toast--in { opacity: 1; transform: none; }
+.toast--success { background: #0B6B41; }
+.toast--error { background: var(--error); }
+
+/* ---------------------------------------------------------------------------
+   19. Login
+   --------------------------------------------------------------------------- */
 
 .login-screen {
   min-height: 100vh;
@@ -59,714 +2055,350 @@ body {
   align-items: center;
   justify-content: center;
   padding: 24px 16px;
+  background:
+    radial-gradient(1000px 560px at 12% -10%, rgba(31, 191, 75, 0.13), transparent 62%),
+    radial-gradient(760px 480px at 108% 108%, rgba(43, 87, 199, 0.10), transparent 60%),
+    var(--bg);
 }
 
 .login-card {
+  display: grid;
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1fr);
   width: 100%;
-  max-width: 380px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 32px 28px;
-}
-
-.login-brand { text-align: center; margin-bottom: 24px; }
-.login-brand h1 { font-size: 20px; margin: 12px 0 0; }
-.login-sub { color: var(--text-secondary); margin: 2px 0 0; font-size: 13px; }
-
-.login-logo {
-  width: 48px; height: 48px;
-  margin: 0 auto;
-  border-radius: 12px;
-  background: var(--primary);
-  color: #fff;
-  font-weight: 800;
-  font-size: 16px;
-  display: flex; align-items: center; justify-content: center;
-}
-.login-logo--sm { width: 30px; height: 30px; font-size: 12px; border-radius: 8px; }
-
-.login-error {
-  background: var(--error-soft);
-  color: var(--error);
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
-  font-size: 13px;
-  margin: 0 0 16px;
-}
-
-.login-hint {
-  text-align: center;
-  color: var(--text-tertiary);
-  font-size: 12px;
-  margin: 16px 0 0;
-}
-.login-hint code { background: var(--bg); padding: 1px 5px; border-radius: 4px; }
-
-/* ---------- Form fields ---------- */
-
-.field { display: block; margin-bottom: 16px; }
-.field span { display: block; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
-.field em { font-weight: 400; font-style: normal; color: var(--text-tertiary); }
-.field input, .field select {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  font-size: 14px;
-  font-family: inherit;
-  background: var(--surface);
-  color: var(--text);
-}
-.field input:focus, .field select:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(50,205,50,0.15);
-}
-.field-help {
-  margin: -8px 0 16px;
-  padding: 10px 12px;
-  background: var(--bg);
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-}
-.field--inline { display: flex; flex-direction: column; margin-bottom: 0; min-width: 180px; }
-.field--grow { flex: 1; min-width: 240px; }
-
-/* Password field with a reveal toggle — typing a password blind on a phone
-   keyboard is the single most common reason a correct password gets
-   rejected, so the toggle is not a nicety here. */
-/* Wraps the input alone, not the label, so the toggle centres on the input
-   box whatever its height. */
-.field-with-affix { position: relative; display: block; }
-.field-with-affix input { padding-right: 64px; }
-.pwd-toggle {
-  position: absolute;
-  top: 3px;
-  bottom: 3px;
-  right: 3px;
-  min-width: 52px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 12.5px;
-  font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
-  border-radius: 8px;
-  touch-action: manipulation;
-}
-.pwd-toggle:hover { background: var(--bg); color: var(--text); }
-
-/* ---------- Buttons ---------- */
-
-.btn {
-  border: none;
-  border-radius: 999px;
-  padding: 10px 18px;
-  font-size: 13.5px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  transition: opacity 0.15s, transform 0.1s;
-  touch-action: manipulation;
-  white-space: nowrap;
-}
-.btn:active { transform: scale(0.97); }
-.btn:disabled { opacity: 0.55; cursor: not-allowed; }
-
-.btn--primary { background: var(--primary); color: #fff; box-shadow: 0 4px 14px rgba(50,205,50,0.28); }
-.btn--primary:hover:not(:disabled) { background: var(--primary-dark); }
-.btn--full { width: 100%; padding: 12px; font-size: 14.5px; }
-
-.btn--ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border-strong); }
-.btn--ghost:hover:not(:disabled) { background: var(--bg); }
-
-.btn--danger { background: var(--error-soft); color: var(--error); }
-.btn--danger:hover:not(:disabled) { background: var(--error); color: #fff; }
-
-.btn--small { padding: 6px 12px; font-size: 12.5px; }
-.btn--tiny { padding: 4px 9px; font-size: 11.5px; border-radius: 8px; background: var(--bg); color: var(--text-secondary); }
-.btn--tiny.btn--danger { background: var(--error-soft); color: var(--error); }
-
-/* ---------- Top bar / tabs ---------- */
-
-.topbar {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 12px;
-  padding: 12px 24px;
-  padding-top: calc(12px + env(safe-area-inset-top, 0px));
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
-  z-index: 20;
-}
-.topbar-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; }
-.topbar-right { display: flex; align-items: center; gap: 14px; min-width: 0; }
-.admin-email {
-  color: var(--text-secondary);
-  font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tabs {
-  display: flex; gap: 4px;
-  padding: 0 24px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 56px;
-  z-index: 19;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.tabs::-webkit-scrollbar { display: none; }
-.tab-btn {
-  border: none; background: transparent;
-  padding: 12px 16px;
-  font-size: 13.5px; font-weight: 600;
-  color: var(--text-secondary);
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  white-space: nowrap;
-  flex: 0 0 auto;
-  touch-action: manipulation;
-}
-.tab-btn:hover { color: var(--text); }
-.tab-btn--active { color: var(--primary-dark); border-bottom-color: var(--primary); }
-.tab-label-short { display: none; }
-
-.content {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 28px 24px;
-  padding-bottom: calc(64px + var(--safe-b));
-}
-
-.panel-header { margin-bottom: 20px; }
-.panel-header h2 { margin: 0 0 4px; font-size: 19px; }
-.panel-sub { margin: 0; color: var(--text-secondary); font-size: 13px; }
-
-.toolbar {
-  display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap;
-  margin-bottom: 16px;
-}
-
-.cache-note {
-  margin: -6px 0 14px;
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
-.cache-note:empty { display: none; }
-.cache-note::before { content: "● "; color: var(--success); }
-.cache-note--stale::before { color: var(--text-tertiary); }
-
-.warning-note {
-  background: var(--warning-soft);
-  color: #92651a;
-  border-radius: var(--radius-sm);
-  padding: 12px 14px;
-  font-size: 12.5px;
-  line-height: 1.5;
-  margin: 0 0 16px;
-}
-.warning-note code { background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 4px; }
-
-/* ---------- Tables ---------- */
-
-.table-wrap {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-table { width: 100%; border-collapse: collapse; }
-thead th {
-  text-align: left;
-  font-size: 11.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-tertiary);
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg);
-}
-tbody td {
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--border);
-  vertical-align: middle;
-}
-tbody tr:last-child td { border-bottom: none; }
-tbody tr:hover { background: rgba(0,0,0,0.012); }
-
-.empty { text-align: center; color: var(--text-tertiary); padding: 32px 14px; }
-.empty--error { color: var(--error); }
-
-.cell-thumb {
-  width: 44px; height: 44px;
-  border-radius: 10px;
-  background: var(--bg);
-  display: flex; align-items: center; justify-content: center;
-  overflow: hidden;
-}
-.cell-thumb img { width: 100%; height: 100%; object-fit: contain; }
-.thumb-placeholder { font-size: 18px; opacity: 0.4; }
-
-.cell-title { font-weight: 600; }
-.cell-sub { color: var(--text-tertiary); font-size: 12px; margin-top: 2px; }
-
-.hidden-tag {
-  display: inline-block;
-  background: var(--warning-soft);
-  color: #92651a;
-  font-weight: 700;
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  margin-right: 5px;
-}
-
-.series-tag {
-  display: inline-block;
-  background: var(--primary-soft);
-  color: var(--on-primary-soft);
-  font-weight: 700;
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  margin-right: 5px;
-}
-.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; color: var(--text-secondary); }
-
-.cell-actions { white-space: nowrap; }
-.cell-actions .btn + .btn { margin-left: 6px; }
-
-.status-select {
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border-strong);
-  font-size: 12.5px;
-  font-family: inherit;
-  background: var(--surface);
-  color: var(--text);
-  max-width: 100%;
-}
-
-.badge {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-.badge--success { background: var(--success-soft); color: var(--success); }
-.badge--warning { background: var(--warning-soft); color: var(--warning); }
-
-/* ---------- Variant panel ---------- */
-
-.variant-row td { padding: 0; background: var(--bg); }
-.variant-panel { padding: 16px 14px 18px 74px; }
-.variant-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-.variant-item {
-  display: flex; align-items: center; gap: 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 8px 12px;
-}
-.variant-storage { font-weight: 600; min-width: 90px; }
-.variant-price { color: var(--on-primary-soft); font-weight: 600; flex: 1; }
-
-.variant-add-form {
-  display: flex; gap: 8px; flex-wrap: wrap;
-}
-.variant-add-form input {
-  padding: 8px 11px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  font-size: 13px;
-  font-family: inherit;
-}
-.variant-add-form input[name="storage"] { width: 160px; }
-.variant-add-form input[name="base_price"] { width: 130px; }
-
-/* ---------- Pricing rules ----------
-
-   One card per document in `deduction_rules`. Every row is editable in place
-   rather than behind a modal: the job here is comparing numbers against each
-   other — a 4% scratch beside an 11% one — and a modal hides the comparison
-   that makes the number make sense. */
-
-.rule-card { margin-bottom: 18px; }
-
-.rule-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 14px;
-  flex-wrap: wrap;
-  margin-bottom: 14px;
-}
-.rule-head h3 { margin: 0 0 4px; font-size: 16px; }
-.rule-head h3 .badge { vertical-align: middle; margin-left: 6px; }
-.rule-head code { font-size: 11.5px; }
-.rule-head__actions { display: flex; gap: 8px; flex: 0 0 auto; }
-
-/* Where this rule lands in the app, said plainly. It is the question anyone
-   has in mind while changing a number that moves money. */
-.rule-used {
-  margin: 6px 0 0;
-  font-size: 12.5px;
-  color: var(--text-secondary);
-  max-width: 62ch;
-}
-
-.rule-rows { display: flex; flex-direction: column; gap: 10px; }
-
-.rule-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 12px;
-  padding: 10px;
-  background: var(--bg);
-  border-radius: var(--radius-sm);
-}
-.rule-row__fields {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.rule-row__move { display: flex; gap: 4px; flex: 0 0 auto; padding-bottom: 2px; }
-
-.field--tight { margin-bottom: 0; min-width: 140px; }
-.field--tight span { margin-bottom: 4px; }
-
-/* The percentage and what it is worth, side by side. A shop owner prices in
-   rupees; "11%" of a phone is not a figure anyone holds in their head. */
-.rule-pct { display: flex; align-items: center; gap: 8px; }
-.rule-pct input { width: 84px; }
-.rule-pct__money {
-  font-size: 12.5px;
-  color: var(--text-secondary);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.rule-worst {
-  margin: 14px 0 0;
-  font-size: 12.5px;
-  color: var(--text-secondary);
-}
-.rule-worst--over {
-  background: var(--warning-soft);
-  color: #92651a;
-  border-radius: var(--radius-sm);
-  padding: 9px 11px;
-}
-
-.rule-divider { margin: 28px 0 14px; }
-.rule-divider h3 {
-  margin: 0 0 4px;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-tertiary);
-}
-.rule-divider p { margin: 0; max-width: 70ch; }
-
-/* A phone sets one field per line; the row's buttons go under them rather
-   than squeezing the fields into a column each. */
-@media (max-width: 720px) {
-  .rule-row { flex-direction: column; align-items: stretch; }
-  .rule-row__fields { flex-direction: column; }
-  .field--tight { min-width: 0; }
-  .rule-row__move { justify-content: flex-end; }
-  .rule-head__actions { width: 100%; }
-  .rule-head__actions .btn { flex: 1; }
-}
-
-/* ---------- Modal ---------- */
-
-.modal {
-  border: none;
-  border-radius: var(--radius);
+  max-width: 860px;
   padding: 0;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.2);
-  max-width: calc(100vw - 32px);
-  max-height: calc(100dvh - 48px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
 }
-.modal::backdrop { background: rgba(0,0,0,0.35); }
-.modal[open] { animation: modal-in 0.2s ease; }
-@keyframes modal-in {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: none; }
+/* The brand panel fills the card's full height whatever the form needs. */
+.login-card > .login-brand { grid-column: 1; grid-row: 1 / span 12; }
+.login-card > *:not(.login-brand) { grid-column: 2; }
+.login-card > .field:first-of-type { margin-top: 40px; }
+.login-card > .field,
+.login-card > .field-with-affix,
+.login-card > #login-submit { margin-left: 40px; margin-right: 40px; }
+
+.login-brand {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 44px 34px;
+  background: linear-gradient(150deg, #0B3D1D 0%, #10562A 46%, #12853C 100%);
+  color: #fff;
+  overflow: hidden;
 }
-.modal-card { padding: 24px; width: 360px; max-width: 100%; }
-.modal-card h3 { margin: 0 0 18px; font-size: 17px; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
-
-/* ---------- Order details sheet ---------- */
-
-.detail-list { font-size: 13.5px; }
-
-.detail-device {
-  display: flex; align-items: center; gap: 12px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--border);
-}
-.detail-device .cell-thumb { width: 52px; height: 52px; flex: 0 0 auto; }
-.detail-device .cell-title { font-size: 16px; }
-
-.detail-heading {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-tertiary);
-  margin: 18px 0 2px;
-}
-
-.detail-row {
-  display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
-  padding: 9px 0;
-  border-bottom: 1px solid var(--border);
-}
-.detail-row .k { color: var(--text-secondary); flex: 1 1 auto; min-width: 0; }
-.detail-row .v {
-  font-weight: 600; text-align: right;
-  flex: 0 1 auto;
-  overflow-wrap: anywhere;
-}
-
-.detail-row--deduction .k em {
-  display: block;
-  font-style: normal;
-  font-size: 11.5px;
-  color: var(--text-tertiary);
-  margin-top: 1px;
-}
-.detail-minus { color: var(--error); }
-
-/* The phone's own capacity reading, beside the seller's band. See
-   .job-detail__measured — same idea, in the details sheet's own type. */
-.detail-row--deduction .k em.detail-measured { font-variant-numeric: tabular-nums; }
-.detail-row--deduction .k em.detail-measured--off { color: var(--error); }
-
-/* The reading is a long sentence and the deduction is four characters, so on
-   a 360px sheet the flex row would sooner break "−₹3,000" across two lines
-   than wrap the sentence. The amount is the one thing here that must not
-   break; it is also never long enough to need to. */
-.detail-row--deduction .v { white-space: nowrap; }
-
-.detail-row--total {
-  display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
-  padding: 12px 0 0;
-  border-top: 2px solid var(--text);
-  border-bottom: none;
-  margin-top: 2px;
-}
-.detail-row--total .k { font-weight: 700; color: var(--text); }
-.detail-row--total .v { font-size: 17px; color: var(--on-primary-soft); }
-
-.detail-note {
-  background: var(--warning-soft);
-  color: #92651a;
-  border-radius: var(--radius-sm);
-  padding: 9px 11px;
-  font-size: 12px;
-  margin: 10px 0 0;
-}
-.detail-address {
-  margin: 6px 0 0;
-  padding: 10px 12px;
-  background: var(--bg);
-  border-radius: var(--radius-sm);
-  line-height: 1.45;
-}
-
-/* ---------- Toasts ---------- */
-
-.toast-host {
-  position: fixed;
-  bottom: calc(20px + var(--safe-b));
-  right: 20px;
-  left: auto;
-  display: flex; flex-direction: column; gap: 8px;
-  z-index: 999;
+/* A quiet phone-grid, so the panel has texture without an image request. */
+.login-brand::before {
+  content: "";
+  position: absolute;
+  inset: -30% -30% auto auto;
+  width: 420px;
+  height: 420px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(31, 191, 75, 0.55), transparent 62%);
   pointer-events: none;
 }
-.toast {
-  background: var(--text);
+.login-brand::after { content: none; }
+.login-brand h1 {
+  position: relative;
+  margin: 18px 0 0;
+  font-size: 26px;
+  line-height: 1.2;
   color: #fff;
-  padding: 11px 16px;
-  border-radius: 10px;
-  font-size: 13px;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.2);
-  opacity: 0;
-  transform: translateY(8px);
-  transition: opacity 0.2s, transform 0.2s;
-  max-width: 320px;
+  letter-spacing: -0.02em;
 }
-.toast--in { opacity: 1; transform: translateY(0); }
-.toast--success { background: var(--on-primary-soft); }
-.toast--error { background: var(--error); }
+.login-sub {
+  position: relative;
+  margin: 4px 0 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
 
-/* ---------- Install (PWA) prompt ---------- */
-
-.install-btn {
-  border: 1px solid var(--primary);
-  background: var(--primary-soft);
-  color: var(--on-primary-soft);
-  border-radius: 999px;
-  padding: 7px 14px;
-  font-size: 12.5px;
+.login-logo {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  background: var(--primary);
+  color: var(--primary-ink);
+  font-size: 15px;
   font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
-  white-space: nowrap;
+  letter-spacing: -0.02em;
+  box-shadow: 0 6px 18px -6px rgba(0, 0, 0, 0.45);
+}
+.login-brand .login-logo {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  background: #fff;
+  color: #0B3D1D;
+  font-size: 17px;
+}
+.login-logo--sm { width: 32px; height: 32px; border-radius: 10px; font-size: 12px; box-shadow: none; }
+
+.login-error {
+  margin: 0 40px 18px;
+  padding: 11px 14px;
+  border: 1px solid rgba(217, 45, 32, 0.16);
+  border-radius: var(--radius-sm);
+  background: var(--error-soft);
+  color: var(--error);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.login-hint {
+  margin: 18px 40px 40px;
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+  line-height: 1.6;
+  text-align: left;
+}
+.login-card > #login-submit { width: auto; margin-top: 4px; }
+.login-card .field { margin-bottom: 16px; }
+
+/* ---------------------------------------------------------------------------
+   20. Desktop layout — navigation rail
+   ---------------------------------------------------------------------------
+   `#app-screen` becomes `display: contents` so the top bar, the rail, the
+   content and the tab panels that live outside <main> all share one grid:
+   a full-width bar on top, a rail down the left, one content column on the
+   right. No markup moved — only where the boxes land.
+   --------------------------------------------------------------------------- */
+
+@media (min-width: 960px) {
+  body {
+    display: grid;
+    grid-template-columns: var(--rail) minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      "topbar topbar"
+      "rail   main";
+    align-content: start;
+    min-height: 100vh;
+  }
+  #app-screen { display: contents; }
+
+  .topbar {
+    grid-area: topbar;
+    padding: 12px 28px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .tabs {
+    grid-area: rail;
+    position: sticky;
+    top: var(--topbar-h);
+    align-self: start;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 3px;
+    width: var(--rail);
+    height: calc(100dvh - var(--topbar-h));
+    padding: 18px 14px;
+    border-right: 1px solid var(--border);
+    border-bottom: none;
+    background: var(--surface);
+    overflow-y: auto;
+  }
+  .tabs::before {
+    content: "Manage";
+    margin: 2px 8px 10px;
+    color: var(--text-tertiary);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+  }
+  .tab-btn {
+    justify-content: flex-start;
+    gap: 11px;
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    font-size: 13.5px;
+    text-align: left;
+    white-space: normal;
+  }
+  .tab-btn:hover { background: var(--surface-2); }
+  .tab-btn--active {
+    background: var(--primary-soft);
+    border-color: var(--primary-soft-2);
+    color: var(--on-primary-soft);
+    box-shadow: inset 3px 0 0 var(--primary);
+  }
+  .tab-label-long { display: inline; }
+  .tab-label-short { display: none; }
+
+  .content,
+  #tab-staff,
+  #tab-checklist,
+  #tab-inspector { grid-area: main; min-width: 0; }
+
+  .content { padding: 32px 32px 96px; }
+  #tab-staff, #tab-checklist { padding: 32px 32px 96px; }
+
+  /* Add an inspector beside the list of inspectors, not above it. Two cards,
+     no markup change. */
+  #tab-staff {
+    display: grid;
+    grid-template-columns: minmax(0, 460px) minmax(0, 1fr);
+    align-items: start;
+    gap: 20px;
+  }
+  #tab-staff > .card { margin-bottom: 0; }
+
+  /* An inspector's tabs are removed from the DOM, but the empty <nav> is not
+     — left alone it parks an empty rail at the bottom of the page. */
+  body.role-inspector .tabs { display: none; }
+  body.role-inspector {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "topbar"
+      "main";
+  }
+
+  /* The login screen is a body child too — it takes the whole grid. */
+  #login-screen { grid-column: 1 / -1; grid-row: 1 / -1; }
+
+  /* The order sheet is a floating panel on a wide screen, not a page. */
+  .modal--sheet { margin: auto; }
+}
+
+/* Tablet — top tabs stay horizontal, content keeps its gutter. */
+@media (min-width: 721px) and (max-width: 959px) {
+  .content, #tab-staff, #tab-checklist { padding: 24px 22px 72px; }
+  .toolbar { gap: 12px; }
+
+  /* Six labels do not fit across a tablet: fade the edge so it is obvious the
+     bar scrolls rather than looking clipped. */
+  .tabs {
+    -webkit-mask-image: linear-gradient(to right, #000 90%, transparent 100%);
+    mask-image: linear-gradient(to right, #000 90%, transparent 100%);
+  }
 }
 
 /* ===========================================================================
-   MOBILE — under 720px the tables become cards.
-
-   Each <tr> turns into a CSS grid: a 56px media column and a content
-   column. By default every cell spans both (full width) and renders its
-   data-label on the left with the value on the right; only .cell-media and
-   .cell-main opt into the two-column top row. Price / payout cells are
-   promoted to a large, green headline so the number that matters is the
-   first thing the eye lands on, and action rows become a 2-column grid of
-   44px touch targets instead of a squeezed inline row.
+   21. PHONE — under 720px
    =========================================================================== */
 
 @media (max-width: 720px) {
+  :root { --topbar-h: 56px; --content-max: 100%; }
 
-  :root { --topbar-h: 52px; }
+  body { font-size: 15px; line-height: 1.55; background: var(--bg); }
 
-  body { font-size: 15px; line-height: 1.55; }
+  .content,
+  #tab-staff,
+  #tab-checklist { padding: 18px 14px calc(104px + var(--safe-b)); }
 
-  .content { padding: 16px 14px calc(72px + var(--safe-b)); max-width: 100%; }
-
-  /* --- top bar: compact, email hidden (it only crowds the controls) --- */
+  /* --- top bar: brand mark + sign out only --- */
   .topbar {
-    padding: 8px 12px;
-    padding-top: calc(8px + env(safe-area-inset-top, 0px));
     gap: 8px;
     min-height: var(--topbar-h);
+    padding: 8px 12px;
+    padding-top: calc(8px + var(--safe-t));
+    background: rgba(255, 255, 255, 0.94);
   }
-  .topbar-brand { gap: 8px; }
-  .login-logo--sm { width: 32px; height: 32px; font-size: 13px; border-radius: 9px; }
+  .topbar-brand { gap: 9px; }
+  .login-logo--sm { width: 32px; height: 32px; border-radius: 9px; font-size: 12px; }
   .topbar-title { display: none; }
   .topbar-right { gap: 8px; }
   .admin-email { display: none; }
-  #sign-out { min-height: 40px; padding: 8px 14px; font-size: 13px; }
-  .install-btn { min-height: 40px; padding: 8px 12px; }
+  #sign-out, .install-btn { min-height: 40px; padding: 8px 14px; font-size: 13px; }
 
-  /* --- tabs: pill segmented bar, snap-scrolling, fade at the edge --- */
-  .tabs {
-    top: var(--topbar-h);
-    padding: 8px 12px;
-    gap: 6px;
-    scroll-snap-type: x proximity;
-    -webkit-overflow-scrolling: touch;
-    mask-image: linear-gradient(to right, black 90%, transparent 100%);
-    -webkit-mask-image: linear-gradient(to right, black 90%, transparent 100%);
-  }
-  .tab-btn {
-    min-height: 44px;
-    padding: 10px 14px;
-    font-size: 13.5px;
-    border: 1px solid transparent;
-    border-bottom: none;
-    border-radius: 999px;
-    scroll-snap-align: start;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .tab-btn--active {
-    background: var(--primary-soft);
-    border-color: rgba(50, 205, 50, 0.4);
-    color: var(--on-primary-soft);
-  }
-  .tab-icon { font-size: 15px; line-height: 1; flex: none; }
+  /* --- navigation is the bottom bar alone on a phone --- */
+  .tabs { display: none; }
   .tab-label-long { display: none; }
   .tab-label-short { display: inline; }
 
-  .panel-header { margin-bottom: 14px; }
-  .panel-header h2 { font-size: 20px; letter-spacing: -0.01em; }
-  .panel-sub { font-size: 13px; line-height: 1.5; }
+  /* --- page header --- */
+  .panel-header { margin-bottom: 16px; }
+  .panel-header h2 { gap: 10px; margin-bottom: 4px; font-size: 19px; }
+  .panel-header h2::before { width: 32px; height: 32px; border-radius: 10px; background-size: 17px 17px; }
+  .panel-sub { font-size: 13px; line-height: 1.55; }
 
-  /* --- login: tighter card, larger tap targets --- */
-  .login-screen { align-items: flex-start; padding: 28px 16px; }
-  .login-card { padding: 26px 20px; border-radius: 20px; }
-  .login-logo { width: 56px; height: 56px; font-size: 18px; border-radius: 14px; }
-  .login-brand h1 { font-size: 21px; }
-  #login-submit { min-height: 52px; font-size: 15.5px; }
-  .pwd-toggle { min-width: 56px; min-height: 44px; }
-
-  /* 16px on every input stops iOS Safari auto-zooming on focus. */
-  .field input, .field select,
-  .variant-add-form input,
-  .status-select, .assign-select,
-  .ck-opt__text, .ck-opt__pctinput,
-  .rule-pct input, .spec-suggest__price,
-  .inspection__amount, .inspection__reason,
-  .staff-form input, .rule-row input, .rule-row select {
-    font-size: 16px;
-  }
-  .field input, .field select { padding: 12px; border-radius: 12px; min-height: 48px; }
-  .field span { font-size: 12px; margin-bottom: 5px; }
-  .field-help { font-size: 12.5px; line-height: 1.55; }
-
-  /* --- toolbar: 2-column filter grid instead of a full-width stack --- */
+  /* --- toolbar: two-up filters, full-width actions, stuck under the bar --- */
   .toolbar {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
     align-items: end;
-    margin-bottom: 12px;
+    margin: 0 -14px 14px;
+    padding: 12px 14px;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    box-shadow: 0 6px 16px -12px rgba(16, 24, 40, 0.35);
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: saturate(160%) blur(10px);
+    -webkit-backdrop-filter: saturate(160%) blur(10px);
   }
-  .field--inline, .field--grow { min-width: 0; width: 100%; }
+  .field--inline, .field--grow { width: 100%; min-width: 0; }
   .toolbar .field--grow { grid-column: 1 / -1; }
-  .toolbar .btn { width: 100%; min-height: 46px; padding: 12px; font-size: 14.5px; }
+  /* Filters on top, then the primary action on its own line, with the
+     secondary one sharing the last filter row. */
+  .toolbar .btn { width: 100%; min-height: 46px; font-size: 14px; }
+  .toolbar > #add-model-btn { grid-column: 1 / -1; margin-left: 0; order: 2; }
+  .toolbar > #refresh-btn { grid-column: 2; grid-row: 2; order: 0; }
+  .toolbar > .field:has(#visibility-select) { grid-column: 1; grid-row: 2; }
   #custom-brand-row { grid-column: 1 / -1; }
 
-  /* --- buttons: 44px minimum touch targets --- */
-  .btn { min-height: 44px; }
-  .btn--small { min-height: 44px; padding: 10px 14px; font-size: 13.5px; }
-  .btn--tiny { min-height: 40px; padding: 8px 12px; font-size: 12.5px; }
+  /* --- inputs: 16px stops iOS Safari zooming on focus --- */
+  .field input, .field select, .field textarea,
+  .staff-form input, .variant-add-form input,
+  .rule-row input, .rule-row select,
+  .status-select, .assign-select,
+  .inspection__amount, .inspection__reason,
+  .ck-opt__text, .ck-opt__pctinput,
+  .spec-suggest__price { font-size: 16px; }
+  .field input, .field select { min-height: 48px; padding: 11px 12px; border-radius: var(--radius-md); }
+  /* the magnifier sits in the padding, so that side keeps its gutter */
+  .field input[type="search"] { padding-left: 42px; background-position: 14px center; }
+  .field > span, .field > label > span { font-size: 11.5px; margin-bottom: 5px; }
+  .field-help { font-size: 12.5px; line-height: 1.6; }
+  .card { padding: 16px 14px; border-radius: var(--radius); }
+  .card > h2 { font-size: 16px; }
 
-  /* --- table → cards --- */
-  .table-wrap { background: transparent; border: none; border-radius: 0; overflow: visible; }
+  /* --- buttons: thumb-sized --- */
+  .btn { min-height: 44px; border-radius: var(--radius-md); }
+  .btn--small { min-height: 42px; padding: 9px 14px; font-size: 13.5px; }
+  .btn--tiny { min-height: 38px; padding: 7px 11px; font-size: 12.5px; }
+  .btn--full { min-height: 50px; font-size: 15px; }
+
+  /* --- tables become cards --- */
+  .table-wrap {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: visible;
+  }
   table, tbody, tr, td { display: block; width: 100%; }
   thead { display: none; }
 
   tbody tr {
     display: grid;
-    grid-template-columns: 56px minmax(0, 1fr);
+    grid-template-columns: 58px minmax(0, 1fr);
     align-items: center;
     gap: 2px 12px;
+    margin-bottom: 10px;
+    padding: 14px;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 14px;
-    margin-bottom: 10px;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-xs);
   }
   tbody tr:hover { background: var(--surface); }
 
@@ -776,169 +2408,252 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 8px 0;
+    min-height: 38px;
+    padding: 9px 0;
     border-bottom: 1px solid var(--border);
-    min-height: 36px;
   }
   tbody tr td:last-child,
   tbody tr td:has(+ .cell-actions) { border-bottom: none; }
 
   tbody td[data-label]::before {
     content: attr(data-label);
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-secondary);
     flex: 0 0 auto;
+    color: var(--text-tertiary);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
+  tbody td.mono { font-size: 12.5px; color: var(--text-secondary); }
 
-  /* Top row of the card: thumbnail beside the title. */
-  td.cell-media {
-    grid-column: 1;
-    padding: 0;
-    border-bottom: none;
-    display: block;
-  }
-  td.cell-media .cell-thumb { width: 56px; height: 56px; border-radius: 12px; }
+  /* Card head: thumbnail + title side by side. */
+  td.cell-media { grid-column: 1; display: block; padding: 0; border-bottom: none; }
+  td.cell-media .cell-thumb { width: 58px; height: 58px; border-radius: var(--radius-md); }
   td.cell-main {
     grid-column: 2;
-    padding: 0 0 10px;
-    border-bottom: none;
     display: block;
     min-width: 0;
+    padding: 0 0 10px;
+    border-bottom: none;
   }
   td.cell-main .cell-title { font-size: 16px; line-height: 1.35; }
-  td.cell-main .cell-sub { font-size: 12.5px; margin-top: 4px; }
+  td.cell-main .cell-sub { margin-top: 3px; font-size: 12.5px; }
 
-  /* A title cell with no thumbnail beside it spans the full width. `order`
-     lifts it to the top of the card without disturbing the desktop column
-     order, so an order reads as "device first" on a phone and still lines up
-     under its Order/Device/Payout headers on a wide screen. */
+  /* A title with no thumbnail beside it takes the whole first row. */
   td.cell-main--full {
     grid-column: 1 / -1;
     order: -1;
+    display: block;
     padding: 0 0 10px;
     border-bottom: 1px solid var(--border);
-    display: block;
   }
   td.cell-main--full .cell-title { font-size: 16px; line-height: 1.35; }
 
-  /* Price is the headline number on the card — large, green, right-aligned. */
+  /* Price is the headline number on the card: large, tabular, in a soft well
+     rather than a row with a label. */
   td.cell-price,
   td[data-label="Payout"],
   td[data-label="Price"] {
-    font-size: 19px;
-    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 10px 0 6px;
+    padding: 12px 14px;
+    border: 1px solid var(--primary-soft-2);
+    border-radius: var(--radius-md);
+    background: var(--primary-soft);
     color: var(--on-primary-soft);
-    font-variant-numeric: tabular-nums;
-    padding: 10px 0;
+    font-size: 20px;
+    font-weight: 700;
+  }
+  td.cell-price::before,
+  td[data-label="Payout"]::before,
+  td[data-label="Price"]::before {
+    order: 2;
+    color: var(--on-primary-soft);
+    font-size: 10.5px;
+    opacity: 0.85;
   }
   td.cell-price .cell-sub,
   td[data-label="Payout"] .cell-sub,
   td[data-label="Price"] .cell-sub {
     display: block;
+    order: 3;
+    flex: 1 0 100%;
+    color: var(--on-primary-soft);
     font-size: 11.5px;
     font-weight: 500;
-    color: var(--text-tertiary);
-    text-align: right;
+    text-align: left;
+    opacity: 0.8;
   }
 
-  /* The dropdown already shows the status; the read-only badge is noise. */
+  td[data-label="Variants"] {
+    min-height: 0;
+    padding: 0 0 10px;
+    border-bottom: none;
+  }
+  td.cell-price + td[data-label="Variants"] { margin-top: 0; }
+
+  /* The status dropdown already says it; the read-only badge is noise. */
   td.cell-status-badge { display: none; }
 
-  /* Status + assign selects stack full-width instead of squeezing. */
-  td[data-label="Status"] {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-  }
+  td[data-label="Status"] { flex-direction: column; align-items: stretch; gap: 8px; }
   td[data-label="Status"]::before { align-self: flex-start; }
   .status-select, .assign-select {
     width: 100%;
     max-width: none;
     min-height: 48px;
-    padding: 10px 12px;
-    border-radius: 12px;
-    font-size: 16px;
+    padding: 11px 12px;
+    border-radius: var(--radius-md);
   }
-  .assign-select { margin-top: 0; }
+  .assign-select {
+  margin-top: 0;
+  border-color: transparent;
+  background-color: transparent;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
+.assign-select:hover { background-color: var(--surface); border-color: var(--border-strong); }
+.assign-select:focus { background-color: var(--surface); }
 
+  /* Actions: the primary one takes the full width, the rest sit in a row
+     underneath. Same four buttons, in the same order as the markup. */
   td.cell-actions {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
     padding: 12px 0 0;
     border-bottom: none;
     white-space: normal;
+    text-align: center;
   }
   td.cell-actions .btn {
-    flex: none;
-    margin-left: 0;
-    min-height: 46px;
-    font-size: 13.5px;
-    padding: 10px 8px;
     width: 100%;
+    min-height: 44px;
+    margin: 0;
+    padding: 9px 8px;
+    border-radius: var(--radius-md);
+    font-size: 13px;
   }
   td.cell-actions .btn + .btn { margin-left: 0; }
-  /* A single action (Orders → Details) takes the full row. */
+  td.cell-actions .btn:first-child { grid-column: 1 / -1; }
   td.cell-actions .btn:only-child { grid-column: 1 / -1; }
+  td.cell-actions .btn[data-action="variants"] {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--primary-ink);
+    box-shadow: none;
+  }
+  td.cell-actions .btn[data-action="view-order"] {
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    color: var(--text-secondary);
+  }
+  td.cell-actions .btn[data-action="delete-model"] {
+    background: var(--error-soft);
+    border-color: rgba(217, 45, 32, 0.18);
+    color: var(--error);
+  }
 
-  .empty { background: var(--surface); border-radius: 16px; border: 1px solid var(--border); padding: 28px 18px; font-size: 14px; }
+  /* Empty and error rows are not cards. */
+  .empty {
+    padding: 30px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
   tbody tr:has(.empty) {
     display: block;
     padding: 0;
+    background: transparent;
     border: none;
     box-shadow: none;
-    background: transparent;
   }
-  tbody tr td.empty { border-bottom: none; display: block; }
+  tbody tr td.empty { display: block; border-bottom: none; }
 
-  /* --- variants --- */
+  /* --- variants panel --- */
   .variant-row { margin-top: -10px; }
   tbody tr.variant-row {
     display: block;
+    margin-bottom: 10px;
     padding: 0;
     background: transparent;
     border: none;
     box-shadow: none;
-    margin-bottom: 10px;
   }
-  .variant-row td { padding: 0; border: none; display: block; }
+  .variant-row td { display: block; border: none; }
   .variant-panel {
     padding: 14px;
     background: var(--primary-soft);
-    border-radius: 16px;
+    border: 1px solid var(--primary-soft-2);
+    border-radius: var(--radius);
   }
-  .variant-item { flex-wrap: wrap; gap: 8px; padding: 12px; border-radius: 12px; }
-  .variant-storage { min-width: 0; flex: 1 0 auto; font-size: 15px; }
+  .variant-item { flex-wrap: wrap; gap: 8px; padding: 12px; border-radius: var(--radius-md); }
+  .variant-storage { flex: 1 0 auto; min-width: 0; font-size: 15px; }
   .variant-price { flex: 0 0 auto; font-size: 15px; }
-  .variant-item .btn--tiny {
-    flex: 1 1 40%;
-    min-height: 44px;
-    font-size: 13px;
-    border-radius: 10px;
-  }
+  .variant-item .btn--tiny { flex: 1 1 40%; min-height: 42px; font-size: 13px; }
   .variant-add-form { flex-direction: column; }
   .variant-add-form input,
   .variant-add-form input[name="storage"],
-  .variant-add-form input[name="base_price"] {
-    width: 100%;
-    padding: 12px;
-    min-height: 48px;
-    border-radius: 12px;
-  }
+  .variant-add-form input[name="base_price"] { width: 100%; min-height: 48px; }
   .variant-add-form .btn { width: 100%; min-height: 48px; }
 
-  /* --- modal becomes a bottom sheet with a grab handle --- */
+  .spec-suggest { padding: 12px; }
+  .spec-suggest__name { font-size: 14px; }
+
+  /* --- pricing rules --- */
+  .rule-card { padding: 16px 14px; }
+  .rule-head { flex-direction: column; align-items: stretch; gap: 10px; padding-bottom: 12px; }
+  .rule-head h3 { font-size: 16px; }
+  .rule-head__actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; }
+  .rule-head__actions .btn { width: 100%; min-height: 44px; }
+  .rule-used { font-size: 13px; }
+  .rule-row { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px; }
+  .rule-row__fields { flex-direction: column; gap: 10px; }
+  .field--tight { width: 100%; min-width: 0; }
+  .rule-row input, .rule-row select { min-height: 48px; }
+  .rule-pct { width: 100%; }
+  .rule-pct input { flex: 1 1 auto; width: auto; min-width: 0; }
+  .rule-pct__money { flex: 0 1 auto; }
+  .rule-row__move { justify-content: flex-end; }
+  .rule-row__move .btn--tiny { min-height: 40px; min-width: 42px; }
+  .rule-worst { font-size: 13px; }
+  .pricing-toolbar .btn { flex: 1 1 40%; min-height: 44px; }
+
+  /* --- checklist editor --- */
+  .ck-card { padding: 14px 12px; }
+  .ck-head__fields { flex-direction: column; gap: 8px; }
+  .ck-head__fields .field { width: 100%; margin-bottom: 4px; }
+  .ck-opt { gap: 8px; padding: 9px; }
+  .ck-opt__n { width: 24px; height: 24px; font-size: 11px; }
+  .ck-opt__text { flex: 1 1 100%; min-height: 44px; }
+  .ck-opt__pctinput { width: 64px; min-height: 44px; }
+  .ck-opt__pct { order: 2; }
+  .ck-opt__move { flex: 1 1 100%; display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; margin-left: 0; }
+  .ck-opt__move .ck-move-btn { width: 100%; min-height: 42px; }
+  .ck-qmove { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .ck-qmove__label { grid-column: 1 / -1; margin-right: 0; }
+  .ck-qmove .ck-move-btn { width: 100%; min-height: 46px; font-size: 13.5px; }
+  .ck-qmove .btn--danger { grid-column: 1 / -1; }
+  .ck-clean-note, .ck-zero-note { font-size: 12px; }
+
+  /* --- staff --- */
+  .staff-form { max-width: none; gap: 12px; }
+  #staff-submit { min-height: 50px; font-size: 15px; }
+  .staff-item { padding: 12px 0; }
+  .staff-item .cell-title { font-size: 15px; }
+
+  /* --- dialogs become bottom sheets with a grab handle --- */
   .modal {
-    margin: auto auto 0 auto;
     width: 100%;
     max-width: 100%;
+    margin: auto auto 0;
     border-radius: 22px 22px 0 0;
     max-height: 92dvh;
   }
-  .modal[open] { animation: sheet-in 0.24s cubic-bezier(0.2, 0, 0.1, 1); }
+  .modal[open] { animation: sheet-in 260ms var(--ease); }
   @keyframes sheet-in {
     from { transform: translateY(100%); }
     to { transform: none; }
@@ -953,1254 +2668,16 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
     display: block;
     width: 40px;
     height: 4px;
-    border-radius: 999px;
-    background: var(--border-strong);
     margin: 0 auto 14px;
+    border-radius: var(--radius-pill);
+    background: var(--border-strong);
   }
-  .modal-card h3 { font-size: 18px; }
+  .modal-card h3 { margin-bottom: 16px; font-size: 18px; }
   .modal-actions { margin-top: 18px; }
   .modal-actions .btn { flex: 1; min-height: 50px; font-size: 15px; }
 
-  .toast-host { left: 14px; right: 14px; bottom: calc(14px + var(--safe-b)); }
-  .toast { max-width: none; font-size: 14px; padding: 13px 16px; border-radius: 12px; }
-
-  .warning-note { font-size: 13px; line-height: 1.55; border-radius: 12px; }
-  .cache-note { font-size: 12.5px; }
-}
-
-@media (max-width: 480px) {
-  .tab-btn { padding: 10px 12px; font-size: 13px; }
-  .content { padding-left: 12px; padding-right: 12px; }
-  tbody tr { padding: 12px; border-radius: 14px; }
-  td.cell-price, td[data-label="Payout"], td[data-label="Price"] { font-size: 18px; }
-}
-
-/* Storage quick-picks in the variant modal.
-   Tap targets are 34px tall rather than the 44px used for primary actions:
-   these sit inside a form on a phone, and full-size buttons would push the
-   price field below the fold. */
-.chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: -4px 0 14px;
-}
-
-.chip {
-  font: inherit;
-  font-size: 0.82rem;
-  line-height: 1;
-  padding: 10px 12px;
-  min-height: 34px;
-  color: var(--on-primary-soft);
-  background: var(--primary-soft);
-  border: 1px solid transparent;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
-}
-
-.chip:hover {
-  border-color: var(--primary);
-}
-
-.chip:active {
-  background: var(--primary);
-  color: #FFFFFF;
-}
-
-.chip:focus-visible {
-  outline: 2px solid var(--primary-dark);
-  outline-offset: 2px;
-}
-
-/* Variants the phone shipped with, read off its own spec sheet and offered
-   with a price box so the admin fills in the number rather than retyping the
-   configuration. */
-.spec-suggest {
-  margin: 10px 0 14px;
-  padding: 12px;
-  background: var(--primary-soft);
-  border-radius: var(--radius-sm);
-}
-
-.spec-suggest__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 10px;
-  color: var(--on-primary-soft);
-}
-
-.spec-suggest__row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.spec-suggest__name {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: 0.88rem;
-  /* Long configurations truncate rather than pushing the price box off a
-     phone screen. */
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.spec-suggest__price {
-  flex: 0 0 96px;
-  width: 96px;
-  min-height: 38px;
-  padding: 6px 10px;
-  font: inherit;
-  font-size: 0.88rem;
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-}
-
-.spec-suggest__price:focus-visible {
-  outline: 2px solid var(--primary-dark);
-  outline-offset: 1px;
-}
-
-@media (max-width: 380px) {
-  /* Below this the three columns stop fitting; the name takes its own line. */
-  .spec-suggest__row {
-    flex-wrap: wrap;
-  }
-  .spec-suggest__name {
-    flex: 1 0 100%;
-  }
-  .spec-suggest__price {
-    flex: 1 1 auto;
-    width: auto;
-  }
-}
-
-/* Staff + inspector screens. */
-.staff-form {
-  display: grid;
-  gap: 10px;
-  max-width: 420px;
-}
-
-.staff-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.staff-item:last-child { border-bottom: 0; }
-
-.assign-select {
-  font: inherit;
-  font-size: 0.84rem;
-  min-height: 38px;
-  padding: 6px 8px;
-  margin-top: 6px;
-  max-width: 100%;
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-}
-
-/* Pickup details on an inspector's job card. */
-.job-card__who {
-  margin-top: 6px;
-  font-weight: 600;
-}
-
-.job-card__address {
-  margin: 4px 0 6px;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  /* Wraps rather than truncating: a half-shown address is useless to someone
-     trying to find a door. */
-  overflow-wrap: anywhere;
-}
-
-/* Declared condition and self-check results. */
-.job-detail {
-  margin-top: 10px;
-  padding: 8px 10px;
-  background: var(--bg);
-  border-radius: var(--radius-sm);
-}
-
-.job-detail > summary {
-  cursor: pointer;
-  font-size: 0.86rem;
-  font-weight: 600;
-  /* A 44px row, so it can be opened with a thumb outdoors. */
-  padding: 8px 0;
-}
-
-.job-detail__row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 6px 0;
-  font-size: 0.86rem;
-  border-top: 1px solid var(--border);
-}
-
-.job-detail__what { min-width: 0; }
-.job-detail__what .cell-sub { display: block; }
-
-.job-detail__cost {
-  flex: 0 0 auto;
-  font-variant-numeric: tabular-nums;
-}
-
-/* The things to actually go and look at. */
-.job-detail__row--fault .job-detail__cost { color: var(--error); font-weight: 600; }
-.job-detail__row--fault .job-detail__what { font-weight: 600; }
-
-.job-detail__row--total {
-  font-weight: 600;
-  border-top: 1px solid var(--border-strong);
-}
-
-.job-detail__passed {
-  padding-top: 6px;
-  border-top: 1px solid var(--border);
-}
-
-/* What an agent needs before knocking: which phone the self-check ran on,
-   whether the handset switches on, whether the quote still stands. Three
-   tones, and the quiet one is deliberate — "could not be tied to this phone"
-   is the ordinary case on Android and must not look like an accusation. */
-.job-note {
-  display: block;
-  margin-top: 10px;
-  padding: 9px 11px;
-  border-radius: var(--radius-sm);
-  font-size: 0.86rem;
-  background: var(--bg);
-}
-.job-note strong { display: block; font-weight: 600; }
-.job-note .cell-sub { display: block; }
-.job-note--warn { background: var(--warning-soft); }
-.job-note--warn strong { color: #92651a; }
-.job-note--good { background: var(--success-soft); }
-.job-note--good strong { color: var(--on-primary-soft); }
-
-/* What the phone measured about itself, under the test that measured it, and
-   under the band the seller graded themselves. Evidence for the inspector —
-   it never moves a figure, so it is not styled as a fault. The exception is a
-   capacity reading that falls outside the band chosen: that disagreement is
-   the whole reason the number is on the order. */
-.job-detail__measured {
-  display: block;
-  font-variant-numeric: tabular-nums;
-}
-.job-detail__measured strong { color: var(--text-secondary); font-weight: 600; }
-.job-detail__measured--off,
-.job-detail__measured--off strong { color: var(--error); }
-
-/* Empty and error states carry a second line explaining what to do, so they
-   need to stack rather than sit on one line. */
-.empty .cell-sub,
-.empty div.cell-sub {
-  display: block;
-  margin-top: 4px;
-}
-
-.empty--error {
-  color: var(--error);
-}
-
-/* Confirming the amount at the door. */
-.inspection {
-  margin-top: 10px;
-  padding: 10px 12px;
-  background: var(--primary-soft);
-  border-radius: var(--radius-sm);
-}
-
-.inspection--done { background: var(--success-soft); }
-
-.inspection__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: var(--on-primary-soft);
-}
-
-.inspection--done .inspection__head { color: var(--text); }
-
-.inspection__row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.inspection__amount {
-  flex: 1 1 auto;
-  min-width: 0;
-  /* 44px, because this is typed outdoors on a phone with one hand. */
-  min-height: 44px;
-  padding: 8px 10px;
-  font: inherit;
-  font-size: 1rem;
-  font-variant-numeric: tabular-nums;
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-}
-
-.inspection__reason {
-  width: 100%;
-  min-height: 40px;
-  padding: 8px 10px;
-  margin-bottom: 8px;
-  font: inherit;
-  font-size: 0.9rem;
-  background: var(--surface);
-  border: 1px solid var(--warning);
-  border-radius: var(--radius-sm);
-}
-
-.inspection__amount:focus-visible,
-.inspection__reason:focus-visible {
-  outline: 2px solid var(--primary-dark);
-  outline-offset: 1px;
-}
-
-/* The seller's answer, on an inspector's card. The one thing that decides
-   whether the phone goes in the bag, so it is not a footnote. */
-.inspection__verdict {
-  margin-top: 8px;
-  padding: 8px 10px;
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: var(--on-primary-soft);
-  background: var(--surface);
-  border-radius: var(--radius-sm);
-}
-
-.inspection__verdict--no {
-  color: var(--error);
-  background: var(--error-soft);
-}
-
-/* The agent's defect checklist, inside a job card.
-   Two buttons a row rather than a dropdown: it is answered standing up, on a
-   phone, often one-handed and in somebody's doorway. */
-.check-group {
-  margin: 12px 0 2px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-}
-.check {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 0;
-  border-top: 1px solid var(--border);
-}
-.check__what { min-width: 0; font-size: 14px; }
-.check__what .cell-sub { display: block; }
-.check--fault .check__what { font-weight: 600; }
-
-/* The seller's own claim against this row. Orange rather than red: it is
-   somebody else's word, and the agent has not answered yet. */
-.check__declared {
-  display: inline-block;
-  margin-top: 4px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--warning-soft);
-  color: #8A5A05;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.check__answer { display: flex; flex: none; gap: 6px; }
-.check__btn {
-  min-width: 56px;
-  padding: 7px 12px;
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.check__btn:hover:not(.is-on) { border-color: var(--text-tertiary); }
-.check__btn--pass.is-on {
-  background: var(--success-soft);
-  border-color: var(--success);
-  color: var(--success);
-}
-.check__btn--fail.is-on {
-  background: var(--error-soft);
-  border-color: var(--error);
-  color: var(--error);
-}
-/* Dashed, never filled: a suggestion must not look like an answer somebody
-   gave. The whole point of the list is that an agent looked. */
-.check__btn.is-suggested {
-  border-style: dashed;
-  border-color: var(--warning);
-  color: #8A5A05;
-}
-
-.inspection__faults {
-  margin-top: 6px;
-  color: var(--error);
-  font-weight: 600;
-}
-.inspection__faults:empty { display: none; }
-
-/* The sentence under a scrap row saying which phones it covers. Full width
-   so it sits under the fields rather than squeezing between them, since a
-   blank brand or series is meaningful here and has to be spelled out. */
-.rule-scrap__scope {
-  flex-basis: 100%;
-  margin: 0;
-}
-
-/* ===================== Inspection checklist =============================
-   Two surfaces share these: the admin editor, where the questions and their
-   answers are written, and the agent's job card, where one answer per
-   question is picked. */
-
-.pricing-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  margin: 12px 0;
-}
-
-/* --- the editor --- */
-
-.ck-card { margin-bottom: 12px; }
-
-.ck-head__fields {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  flex: 1;
-}
-
-.ck-opts { margin: 8px 0; }
-
-.ck-opt {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-
-/* The number carries the rule: answer 1 is the clean one. Saying it in the
-   margin of every row beats a sentence at the top that nobody rereads. */
-.ck-opt__n {
-  flex: none;
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--surface-2, #f1f3f5);
-  color: var(--text-tertiary);
-  font-size: 11px;
-  font-weight: 700;
-}
-.ck-opt__n--clean {
-  background: var(--success-soft);
-  color: var(--success);
-}
-
-.ck-opt__text {
-  flex: 1;
-  min-width: 0;
-  padding: 7px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font: inherit;
-  font-size: 13px;
-}
-
-/* --- the job card --- */
-
-.ck-row {
-  padding: 10px 0;
-  border-top: 1px solid var(--border);
-}
-.ck-row--fault .ck-row__q { color: var(--error); }
-
-.ck-row__q {
-  font-size: 13px;
-  font-weight: 600;
-  margin-bottom: 6px;
-}
-.ck-row__q .cell-sub { display: block; font-weight: 400; }
-
-.ck-row__opts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-/* Wraps rather than scrolls: these answers are whole sentences, and an agent
-   holding a phone in one hand should not have to swipe a row to find the one
-   that matches. */
-.ck-pick {
-  padding: 7px 12px;
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-}
-.ck-pick:hover:not(.is-on) { border-color: var(--text-tertiary); }
-.ck-pick.is-on {
-  background: var(--error-soft);
-  border-color: var(--error);
-  color: var(--error);
-  font-weight: 600;
-}
-/* The clean answer selected is good news, not a finding. */
-.ck-pick--clean.is-on {
-  background: var(--success-soft);
-  border-color: var(--success);
-  color: var(--success);
-}
-
-/* The percentage beside an answer, in the editor. Narrow and to the right of
-   the wording, so a column of them can be read down without the labels
-   getting in the way. */
-.ck-opt__pct {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  color: var(--text-tertiary);
-  font-size: 12px;
-}
-.ck-opt__pctinput {
-  width: 52px;
-  padding: 7px 6px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font: inherit;
-  font-size: 13px;
-  text-align: right;
-}
-.ck-opt__pctinput:disabled {
-  background: var(--surface-2, #f1f3f5);
-  color: var(--text-tertiary);
-}
-
-/* On the job card, the cost rides inside the answer button. */
-.ck-pick__pct {
-  margin-left: 6px;
-  font-weight: 700;
-  opacity: 0.8;
-}
-
-/* What the findings come to, under the questions and above the amount box. */
-.ck-suggest {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 10px;
-  padding: 10px;
-  border-radius: 8px;
-  background: var(--warning-soft, #fff8e1);
-  font-size: 13px;
-}
-
-
-/* =========================================================================
-   Step by step flows
-   =========================================================================
-   The inspector's pickup and the admin's order sheet. Both are read on a
-   phone, one handed, so both are a short stack of steps with one job each
-   and the next action pinned to the bottom of the screen.
-
-   Sizes come from one type scale and one spacing scale, named below, so
-   nothing in this section invents a value of its own. */
-
-:root {
-  --sp-25: 2px;
-  --sp-50: 4px;
-  --sp-75: 8px;
-  --sp-100: 12px;
-  --sp-200: 16px;
-  --sp-300: 24px;
-  --sp-400: 32px;
-  --sp-600: 48px;
-  --r-lg: 8px;
-  --r-xl: 12px;
-  --r-2xl: 16px;
-  --r-full: 9999px;
-  --ease: cubic-bezier(0.22, 1, 0.36, 1);
-  /* Dark on the brand green rather than white: white on #32CD32 is about
-     2:1, which disappears in daylight. */
-  --on-primary: #0B2A0B;
-}
-
-.heading-5 { font-size: 1.5rem; line-height: 2rem; font-weight: 600; margin: 0; text-wrap: balance; }
-.heading-6 { font-size: 1.25rem; line-height: 1.75rem; font-weight: 600; margin: 0; text-wrap: balance; }
-.title-1 { font-size: 1.25rem; line-height: 1.75rem; font-weight: 500; }
-.title-2 { font-size: 1.125rem; line-height: 1.75rem; font-weight: 500; }
-.title-3 { font-size: 1rem; line-height: 1.5rem; font-weight: 500; }
-.body-4 { font-size: 0.875rem; line-height: 1.25rem; font-weight: 600; }
-.body-6 { font-size: 0.875rem; line-height: 1.25rem; font-weight: 400; }
-.button-md { font-size: 1rem; line-height: 1.5rem; font-weight: 600; }
-.button-sm { font-size: 0.875rem; line-height: 1.25rem; font-weight: 600; }
-.button-xsm { font-size: 0.75rem; line-height: 1rem; font-weight: 600; }
-.caption-2 { font-size: 0.875rem; line-height: 1.25rem; font-weight: 400; color: var(--text-secondary); margin: 0; text-wrap: pretty; }
-.caption-3 { font-size: 0.75rem; line-height: 1rem; font-weight: 600; color: var(--text-secondary); }
-.caption-4 { font-size: 0.75rem; line-height: 1rem; font-weight: 500; color: var(--text-secondary); }
-.caption-5 { font-size: 0.75rem; line-height: 1rem; font-weight: 400; color: var(--text-secondary); }
-
-/* --- the one button both flows use --- */
-
-.btn-flow {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--sp-75);
-  /* 48px: pressed with a thumb, outdoors, often in a hurry. */
-  min-height: 48px;
-  padding: var(--sp-75) var(--sp-100);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-xl);
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-  font-size: 1rem;
-  line-height: 1.5rem;
-  font-weight: 600;
-  cursor: pointer;
-  touch-action: manipulation;
-  transition: opacity 300ms var(--ease), transform 300ms var(--ease);
-}
-.btn-flow:hover:not(:disabled) { opacity: 0.86; }
-.btn-flow:active:not(:disabled) { transform: scale(0.98); }
-.btn-flow:disabled { opacity: 0.4; cursor: not-allowed; }
-.btn-flow--primary {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: var(--on-primary);
-}
-.btn-flow:focus-visible,
-.stepper__btn:focus-visible,
-.od__tab:focus-visible,
-.od__close:focus-visible,
-.flow__back:focus-visible,
-.qnav__toggle:focus-visible,
-.flow .ck-pick:focus-visible,
-.flow .check__btn:focus-visible {
-  outline: 2px solid var(--primary-dark);
-  outline-offset: 2px;
-}
-
-/* --- the list of pickups --- */
-
-/* Its own gutter: this panel sits outside `.content`, and the card that
-   used to wrap it was what kept it off the edge of the screen. One column,
-   capped, so on a laptop it stays the width of the phone it was made for. */
-.pickups {
-  max-width: 560px;
-  margin: 0 auto;
-  padding: var(--sp-300) var(--sp-200) calc(var(--sp-300) + var(--safe-b));
-}
-.pickups__head { margin-bottom: var(--sp-200); }
-.pickups__head .caption-2 { margin-top: var(--sp-50); }
-#tab-inspector.is-flow .pickups__head { display: none; }
-
-#inspector-list { display: flex; flex-direction: column; gap: var(--sp-100); }
-#inspector-list > .empty { margin: 0; }
-
-.job {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-100);
-  padding: var(--sp-200);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r-2xl);
-}
-.job__top,
-.job__main {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-100);
-}
-.job__main { align-items: flex-start; }
-.job__device { min-width: 0; }
-.job__payout,
-.flow__payout {
-  flex: none;
-  font-size: 1.25rem;
-  line-height: 1.75rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-/* Whole, never cut short: half an address finds nobody's door. */
-.job__address { overflow-wrap: anywhere; }
-
-/* --- one pickup, as steps --- */
-
-.flow {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-200);
-  /* Clears the tab bar when a step change scrolls the flow to its top. */
-  scroll-margin-top: 120px;
-}
-
-.flow__top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-100);
-}
-.flow__back {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-50);
-  min-height: 44px;
-  padding: 0 var(--sp-75) 0 0;
-  border: none;
-  background: none;
-  color: var(--text);
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.flow__device {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--sp-100);
-  padding: var(--sp-200);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r-2xl);
-}
-
-.stepper {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--sp-50);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.stepper__btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--sp-50);
-  width: 100%;
-  min-height: 56px;
-  padding: var(--sp-50) 0;
-  border: none;
-  border-radius: var(--r-xl);
-  background: none;
-  font-family: inherit;
-  cursor: pointer;
-}
-.stepper__dot {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-full);
-  background: var(--surface);
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  font-weight: 600;
-  transition: transform 300ms var(--ease), opacity 300ms var(--ease);
-}
-.stepper__btn.is-done .stepper__dot {
-  background: var(--primary-soft);
-  border-color: var(--primary-soft);
-  color: var(--on-primary-soft);
-}
-.stepper__btn.is-current .stepper__dot {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: var(--on-primary);
-  transform: scale(1.08);
-}
-.stepper__btn.is-current .stepper__label { color: var(--text); }
-
-.flow__panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-100);
-  animation: flow-in 500ms var(--ease);
-}
-@keyframes flow-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: none; }
-}
-.flow__title { margin-bottom: var(--sp-50); }
-.flow__empty {
-  margin: 0;
-  padding: var(--sp-300) var(--sp-200);
-  text-align: center;
-  color: var(--text-secondary);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r-2xl);
-}
-
-.flow__card {
-  padding: var(--sp-200);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r-2xl);
-}
-.flow__card .job-card__who { margin: 0; font-size: 1rem; line-height: 1.5rem; }
-.flow__card .job-card__address {
-  margin: var(--sp-50) 0;
-  font-size: 1rem;
-  line-height: 1.5rem;
-  color: var(--text);
-}
-
-/* Directions and Call: the two things pressed before the door is reached. */
-.flow__links {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  gap: var(--sp-75);
-}
-.flow__links .btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 48px;
-  padding: var(--sp-75) var(--sp-100);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-xl);
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: none;
-  font-size: 1rem;
-  line-height: 1.5rem;
-  text-decoration: none;
-}
-.flow__links .btn--primary {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: var(--on-primary);
-}
-
-.flow__field { display: flex; flex-direction: column; gap: var(--sp-50); }
-.flow__field .status-select {
-  width: 100%;
-  min-height: 48px;
-  padding: var(--sp-75) var(--sp-100);
-  border-radius: var(--r-xl);
-  font-size: 1rem;
-  line-height: 1.5rem;
-}
-
-/* The blocks the steps are made of. Same markup as ever; here they are
-   cards of their own rather than rows inside one long card. */
-.flow .job-note {
-  margin: 0;
-  padding: var(--sp-100);
-  border-radius: var(--r-xl);
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-}
-.flow .job-detail,
-.od .job-detail {
-  margin: 0;
-  padding: var(--sp-200);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r-2xl);
-}
-.flow .job-detail > summary,
-.od .job-detail > summary {
-  padding: 0 0 var(--sp-75);
-  font-size: 1rem;
-  line-height: 1.5rem;
-  font-weight: 600;
-  list-style: none;
-}
-.flow .job-detail > summary::-webkit-details-marker,
-.od .job-detail > summary::-webkit-details-marker { display: none; }
-.flow .job-detail__row,
-.od .job-detail__row {
-  padding: var(--sp-100) 0;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-}
-/* The verdict of a phone test, as a pill: scanned down the right edge
-   faster than a column of words. */
-.flow .job-detail__cost,
-.od .job-detail__cost { font-weight: 500; text-align: right; max-width: 55%; }
-.flow .job-detail__row--fault .job-detail__cost,
-.od .job-detail__row--fault .job-detail__cost {
-  padding: var(--sp-25) var(--sp-75);
-  border-radius: var(--r-full);
-  background: var(--error-soft);
-}
-
-/* --- the Check step: one question on screen --- */
-
-.qnav { display: flex; flex-direction: column; gap: var(--sp-75); }
-.qnav__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-100);
-}
-.qnav__toggle {
-  min-height: 32px;
-  padding: var(--sp-50) var(--sp-100);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-full);
-  background: var(--surface);
-  color: var(--text);
-  font-family: inherit;
-  cursor: pointer;
-}
-.qnav__track {
-  height: 8px;
-  overflow: hidden;
-  border-radius: var(--r-full);
-  background: var(--border-strong);
-}
-.qnav__fill {
-  height: 100%;
-  border-radius: var(--r-full);
-  background: var(--primary);
-  transform-origin: left center;
-  transition: transform 500ms var(--ease);
-}
-.qnav__group { text-transform: uppercase; letter-spacing: 0.03em; }
-
-.qfoot {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--sp-75);
-}
-
-.flow .job-detail--checks > .job-detail__passed {
-  padding: 0 0 var(--sp-100);
-  border: none;
-}
-.flow .check-group { margin: var(--sp-300) 0 0; }
-
-/* A question and its answers stacked, each answer a full width button. The
-   old rows were a line of text with two small pills at the end of it. */
-.flow .ck-row,
-.flow .check {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--sp-100);
-  padding: var(--sp-200) 0 0;
-  border: none;
-  animation: flow-in 500ms var(--ease);
-}
-.flow .ck-row__q,
-.flow .check__what {
-  margin: 0;
-  font-size: 1.125rem;
-  line-height: 1.75rem;
-  font-weight: 500;
-  text-wrap: pretty;
-}
-.flow .ck-row__q .cell-sub,
-.flow .check__what .cell-sub { margin-top: var(--sp-50); font-size: 0.875rem; line-height: 1.25rem; }
-.flow .check__declared { margin-top: var(--sp-75); }
-
-.flow .ck-row__opts { flex-direction: column; flex-wrap: nowrap; gap: var(--sp-75); }
-.flow .check__answer {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--sp-75);
-}
-.flow .ck-pick,
-.flow .check__btn {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-100);
-  width: 100%;
-  min-height: 56px;
-  padding: var(--sp-100) var(--sp-200);
-  border-radius: var(--r-xl);
-  color: var(--text);
-  font-size: 1rem;
-  line-height: 1.5rem;
-  font-weight: 500;
-  transition: transform 300ms var(--ease), opacity 300ms var(--ease);
-}
-.flow .check__btn { justify-content: center; font-weight: 600; }
-.flow .ck-pick:active,
-.flow .check__btn:active { transform: scale(0.98); }
-.flow .ck-pick.is-on,
-.flow .check__btn.is-on { font-weight: 600; }
-.flow .ck-pick.is-on { color: var(--error); }
-.flow .ck-pick--clean.is-on { color: var(--on-primary-soft); }
-.flow .check__btn--pass.is-on { color: var(--on-primary-soft); }
-.flow .check__btn--fail.is-on { color: var(--error); }
-.flow .ck-pick__pct { flex: none; margin: 0; }
-
-/* An answer with pictures: the pictures sit side by side on top, the words and
-   the deduction underneath. Each picture is square and never squashed. */
-.ck-pick--pic,
-.flow .ck-pick--pic {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: flex-start;
-  gap: var(--sp-100, 12px);
-  text-align: left;
-  min-height: 0;
-  padding: var(--sp-100, 12px);
-}
-.ck-pick__pics {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  gap: var(--sp-75, 8px);
-}
-.ck-pick__img {
-  display: block;
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
-  border-radius: 12px;
-  border: 1px solid var(--border, #eeeeee);
-  background: #fff;
-}
-.ck-pick__text {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-100, 12px);
-  width: 100%;
-}
-.ck-pick__label { flex: 1 1 auto; min-width: 0; }
-.ck-pick--pic .ck-pick__pct { margin-left: auto; flex: none; }
-
-/* --- the Confirm step --- */
-
-.flow .ck-suggest {
-  margin: 0;
-  padding: var(--sp-200);
-  border-radius: var(--r-2xl);
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-}
-.flow .ck-suggest .btn {
-  min-height: 44px;
-  padding: var(--sp-75) var(--sp-100);
-  border-radius: var(--r-xl);
-  font-size: 0.875rem;
-}
-[data-pay-slot]:empty { display: none; }
-
-.flow .inspection {
-  margin: 0;
-  padding: var(--sp-200);
-  border-radius: var(--r-2xl);
-}
-.flow .inspection__head { font-size: 1rem; line-height: 1.5rem; }
-.flow .inspection__row { flex-direction: column; gap: var(--sp-75); }
-.flow .inspection__amount {
-  min-height: 64px;
-  padding: var(--sp-75) var(--sp-200);
-  border-radius: var(--r-xl);
-  font-size: 1.5rem;
-  line-height: 2rem;
-  font-weight: 600;
-}
-.flow .inspection__reason {
-  min-height: 48px;
-  padding: var(--sp-75) var(--sp-100);
-  border-radius: var(--r-xl);
-  font-size: 1rem;
-  line-height: 1.5rem;
-}
-.flow .inspection [data-confirm] {
-  min-height: 56px;
-  border-radius: var(--r-xl);
-  background: var(--primary);
-  color: var(--on-primary);
-  box-shadow: none;
-  font-size: 1rem;
-  line-height: 1.5rem;
-}
-.flow .inspection__verdict { border-radius: var(--r-xl); padding: var(--sp-100); }
-
-/* Back and Next, always under the thumb. Flat, and the page's own colour,
-   so it reads as part of the screen rather than a card laid over it. */
-.flow__bar {
-  position: sticky;
-  bottom: 0;
-  z-index: 5;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-  gap: var(--sp-75);
-  margin-top: var(--sp-75);
-  padding: var(--sp-100) 0 calc(var(--sp-100) + var(--safe-b));
-  background: var(--bg);
-}
-/* On the last step there is no Next, so Back takes the whole bar. */
-.flow__bar:has([data-job-next][hidden]) [data-job-prev] { grid-column: 1 / -1; }
-
-/* --- the admin's order sheet --- */
-
-.modal--sheet {
-  width: 560px;
-  max-width: calc(100vw - 32px);
-  height: min(760px, calc(100dvh - 48px));
-  overflow: hidden;
-  border-radius: var(--r-2xl);
-}
-.modal--sheet[open] { display: flex; animation: modal-in 500ms var(--ease); }
-.modal--sheet .modal-card {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  width: auto;
-  min-height: 0;
-  padding: 0;
-}
-
-.od__bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-100);
-  padding: var(--sp-200) var(--sp-200) var(--sp-75);
-}
-.modal--sheet .od__bar h3 { margin: 0; font-size: 1.25rem; }
-.od__close {
-  min-height: 44px;
-  padding: var(--sp-75) var(--sp-100);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-xl);
-  background: var(--surface);
-  color: var(--text);
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.od__body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 0 var(--sp-200) var(--sp-200);
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-}
-.od__body .detail-device { margin: 0; padding: var(--sp-75) 0; border: none; }
-
-/* The steps, as a row that scrolls sideways on a narrow phone and stays put
-   while the step under it scrolls. */
-.od__tabs {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  display: flex;
-  gap: var(--sp-75);
-  margin: 0 calc(var(--sp-200) * -1);
-  padding: var(--sp-75) var(--sp-200) var(--sp-100);
-  overflow-x: auto;
-  scrollbar-width: none;
-  background: var(--surface);
-}
-.od__tabs::-webkit-scrollbar { display: none; }
-.od__tab {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: var(--sp-75);
-  min-height: 44px;
-  padding: var(--sp-75) var(--sp-100);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-full);
-  background: var(--surface);
-  color: var(--text-secondary);
-  font-family: inherit;
-  cursor: pointer;
-  transition: opacity 300ms var(--ease);
-}
-.od__tab:hover { opacity: 0.8; }
-.od__n {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: var(--r-full);
-  background: var(--bg);
-  font-size: 0.75rem;
-  line-height: 1rem;
-}
-.od__tab.is-current {
-  background: var(--primary-soft);
-  border-color: var(--primary);
-  color: var(--on-primary-soft);
-}
-.od__tab.is-current .od__n { background: var(--primary); color: var(--on-primary); }
-
-.od__panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-100);
-  animation: flow-in 500ms var(--ease);
-}
-.od__panel .detail-heading:first-child { margin-top: 0; }
-.od__panel .detail-row { padding: var(--sp-100) 0; margin: 0; }
-.od__panel .job-detail { background: var(--bg); border: none; border-radius: var(--r-xl); }
-.od__panel .job-note { margin: 0; border-radius: var(--r-xl); padding: var(--sp-100); }
-
-.od__foot {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-  gap: var(--sp-75);
-  padding: var(--sp-100) var(--sp-200) calc(var(--sp-100) + var(--safe-b));
-  background: var(--bg);
-}
-
-/* A phone gets the whole screen: a sheet floating in a 360px window wastes
-   the little room there is. */
-@media (max-width: 720px) {
+  /* The order sheet gets the whole screen: a panel floating in a 360px window
+     wastes the little room there is. */
   .modal--sheet {
     width: 100vw;
     max-width: 100vw;
@@ -2209,562 +2686,158 @@ tbody tr:hover { background: rgba(0,0,0,0.012); }
     margin: 0;
     border-radius: 0;
   }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .flow__panel,
-  .od__panel,
-  .flow .ck-row,
-  .flow .check,
-  .modal--sheet[open] { animation: flow-fade 300ms var(--ease); }
-  .qnav__fill,
-  .stepper__dot,
-  .btn-flow,
-  .flow .ck-pick,
-  .flow .check__btn { transition: none; }
-  .stepper__btn.is-current .stepper__dot { transform: none; }
-}
-@keyframes flow-fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-/* A neutral note is the page's own colour, which on the page itself is no
-   box at all. Inside a step it gets a surface to sit on. */
-.flow .job-note:not(.job-note--warn):not(.job-note--good) {
-  background: var(--surface);
-  border: 1px solid var(--border);
-}
-
-/* With every panel inside it hidden, `.content` is 74px of padding around
-   nothing: a blank band above the inspector's screen. */
-.content:not(:has(> .tab-panel:not([hidden]))) { display: none; }
-
-/* One question at a time: the card is the question. Its summary line and the
-   note under it are shown again by "Show all". */
-.flow.is-single .job-detail--checks > summary,
-.flow.is-single .job-detail--checks > .job-detail__passed { display: none; }
-.flow.is-single .ck-row,
-.flow.is-single .check { padding-top: 0; }
-.qnav__row > .caption-5 { min-width: 0; }
-
-/* The step is already titled "Confirm the amount"; the block's own heading
-   says it a second time. Kept once a finding is filed, where it carries the
-   settled figure. */
-.flow .inspection:not(.inspection--done) .inspection__head { display: none; }
-
-/* ===========================================================================
-   MOBILE POLISH — components defined after the main mobile block
-   (pricing, checklist editor, staff, job cards). Kept at the end of the
-   file so these rules win over the base styles above at equal specificity.
-   =========================================================================== */
-
-@media (max-width: 720px) {
-
-  /* --- pricing rules: one field per line, money preview as a chip --- */
-  .rule-card { padding: 16px 14px; border-radius: 16px; }
-  .rule-head { flex-direction: column; align-items: stretch; gap: 10px; }
-  .rule-head h3 { font-size: 16.5px; }
-  .rule-head__actions { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .rule-head__actions .btn { flex: none; width: 100%; min-height: 46px; }
-  .rule-used { font-size: 13px; line-height: 1.55; max-width: none; }
-  .rule-row { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px; border-radius: 12px; }
-  .rule-row__fields { flex-direction: column; gap: 10px; }
-  .field--tight { min-width: 0; width: 100%; }
-  .rule-row input, .rule-row select { min-height: 48px; border-radius: 12px; padding: 12px; width: 100%; }
-  .rule-pct { width: 100%; }
-  .rule-pct input { flex: 1 1 auto; width: auto; min-height: 48px; }
-  .rule-pct__money {
-    flex: 0 0 auto;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 8px 12px;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--on-primary-soft);
+  .modal--sheet .od__bar { padding: 16px 16px 12px; padding-top: calc(16px + var(--safe-t)); }
+  .od__tabs {
+    margin: 0 -16px;
+    padding: 10px 16px;
+    -webkit-mask-image: linear-gradient(to right, #000 88%, transparent 100%);
+    mask-image: linear-gradient(to right, #000 88%, transparent 100%);
   }
-  .rule-row__move { justify-content: flex-end; }
-  .rule-row__move .btn--tiny { min-height: 44px; min-width: 44px; font-size: 15px; }
-  .rule-worst { font-size: 13px; }
-  .pricing-toolbar { gap: 8px; }
-  .pricing-toolbar .btn { min-height: 44px; flex: 1 1 40%; }
+  .od__body { padding: 14px 16px 20px; font-size: 14px; }
+  .od__panel .detail-row { padding: 12px 0; }
+  .od__foot { padding: 12px 16px calc(12px + var(--safe-b)); }
+  .od__tab { min-height: 44px; }
+  .od__close { min-height: 44px; }
 
-  /* --- checklist editor: full-width question, larger option rows --- */
-  .ck-card { padding: 16px 14px; border-radius: 16px; }
-  .ck-head__fields { flex-direction: column; gap: 10px; }
-  .ck-head__fields .field { width: 100%; }
-  .ck-opt { gap: 8px; margin-bottom: 8px; }
-  .ck-opt__n { width: 26px; height: 26px; font-size: 12px; }
-  .ck-opt__text { min-height: 48px; padding: 12px; border-radius: 12px; font-size: 16px; }
-  .ck-opt__pctinput { width: 64px; min-height: 48px; border-radius: 12px; }
-  .ck-opt .btn--tiny { min-height: 44px; min-width: 44px; font-size: 15px; }
-  .ck-opts .btn { min-height: 44px; }
+  .detail-row--total .v { font-size: 20px; }
 
-  /* --- staff --- */
-  .staff-form { max-width: none; gap: 12px; }
-  .staff-form input { min-height: 48px; border-radius: 12px; padding: 12px; }
-  #staff-submit { min-height: 50px; font-size: 15px; }
-  .staff-item { padding: 12px 0; }
-  .card { padding: 16px 14px; border-radius: 16px; }
+  /* --- inspector flow --- */
+  .pickups { padding: 18px 14px calc(24px + var(--safe-b)); }
+  .job { padding: 16px; }
+  .check__btn { min-height: 46px; min-width: 62px; }
+  .ck-pick { min-height: 44px; }
+  .job-detail > summary { display: flex; align-items: center; min-height: 46px; font-size: 15px; }
+  .flow__bar { padding-bottom: calc(14px + var(--safe-b)); }
 
-  /* --- job / inspector cards --- */
-  .job-card { border-radius: 16px; padding: 14px; }
-  .check__btn { min-height: 48px; min-width: 64px; padding: 10px 16px; font-size: 14px; }
-  .ck-pick { min-height: 44px; padding: 10px 14px; font-size: 14px; }
-  .job-detail > summary { min-height: 48px; display: flex; align-items: center; font-size: 15px; }
+  /* --- toasts --- */
+  .toast-host { right: 14px; left: 14px; bottom: calc(84px + var(--safe-b)); }
+  .toast { max-width: none; padding: 13px 16px; font-size: 14px; }
 
-  /* --- order sheet tabs: larger pills --- */
-  .od__tab { min-height: 48px; padding: 10px 14px; font-size: 14px; }
-  .od__close { min-height: 48px; padding: 10px 16px; font-size: 14px; }
-
-  /* --- detail rows: roomier, easier to scan --- */
-  .detail-row { padding: 11px 0; font-size: 14px; }
-  .detail-row--total .v { font-size: 19px; }
-
-  /* --- focus visibility for keyboard / switch users on touch devices --- */
-  .btn:focus-visible, .tab-btn:focus-visible, .chip:focus-visible {
-    outline: 2px solid var(--primary-dark);
-    outline-offset: 2px;
+  /* --- login: brand panel on top, form under it --- */
+  .login-screen { align-items: flex-start; padding: 20px 14px 32px; }
+  .login-card {
+    display: block;
+    max-width: 440px;
+    margin: 0 auto;
+    border-radius: 22px;
   }
-}
-
-@media (max-width: 380px) {
-  .toolbar { grid-template-columns: 1fr 1fr; gap: 8px; }
-  td.cell-actions { grid-template-columns: 1fr 1fr; }
-  .rule-head__actions { grid-template-columns: 1fr 1fr; }
-}
-
-/* ===========================================================================
-   ROUND 2 — Mobile redesign: bottom navigation, sticky filters, price
-   banners, status colours. Desktop keeps the top tabs; the bottom bar and
-   FAB only exist under 720px.
-   =========================================================================== */
-
-/* --- status colours (all screen sizes) --- */
-.badge--status-placed { background: #E8EEF7; color: #3B5BDB; }
-.badge--status-agent_assigned { background: var(--warning-soft); color: #92651a; }
-.badge--status-inspection { background: #F3E8FD; color: #7C3AED; }
-.badge--status-paid { background: var(--success-soft); color: var(--on-primary-soft); }
-.badge--status-declined { background: var(--error-soft); color: var(--error); }
-
-/* --- bottom nav + FAB: desktop hides both entirely --- */
-.bottom-nav { display: none; }
-.fab { display: none; }
-
-@media (max-width: 720px) {
-
-  /* Top tabs are replaced by the bottom bar on a phone — one navigation,
-     within thumb reach, instead of two competing bars. */
-  .tabs { display: none; }
-
-  /* Room for the fixed bottom bar + FAB. */
-  .content { padding-bottom: calc(96px + var(--safe-b)) !important; }
+  .login-brand {
+    align-items: center;
+    justify-content: center;
+    padding: 30px 24px 26px;
+    text-align: center;
+    border-radius: 22px 22px 0 0;
+  }
+  .login-brand .login-logo { margin-inline: auto; }
+  .login-brand h1 { margin-top: 14px; font-size: 21px; }
+  .login-card > .field,
+  .login-card > .field-with-affix,
+  .login-card > #login-submit { margin-left: 20px; margin-right: 20px; }
+  .login-card > .field:first-of-type { margin-top: 24px; }
+  .login-card > #login-submit { width: 100%; }
+  .login-error { margin: 20px 20px 0; }
+  .login-hint { margin: 16px 20px 26px; text-align: center; }
+  .login-brand .login-logo { width: 56px; height: 56px; font-size: 18px; border-radius: 15px; }
+  #login-submit { min-height: 52px; font-size: 15.5px; }
+  .pwd-toggle { min-width: 58px; min-height: 40px; }
 
   /* --- bottom navigation --- */
   .bottom-nav {
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
     position: fixed;
-    left: 0; right: 0; bottom: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
     z-index: 40;
-    background: rgba(255, 255, 255, 0.96);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    padding: 7px 6px calc(7px + var(--safe-b));
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: saturate(180%) blur(14px);
+    -webkit-backdrop-filter: saturate(180%) blur(14px);
     border-top: 1px solid var(--border);
-    padding: 6px 4px calc(6px + var(--safe-b));
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 -8px 24px -16px rgba(16, 24, 40, 0.4);
   }
   .bottom-nav__btn {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 2px;
-    min-height: 56px;
+    gap: 4px;
+    min-height: 54px;
     padding: 6px 2px;
     border: none;
-    border-radius: 14px;
+    border-radius: var(--radius-md);
     background: transparent;
     color: var(--text-tertiary);
     font-family: inherit;
-    font-size: 10.5px;
+    font-size: 10px;
     font-weight: 600;
+    letter-spacing: 0.005em;
     cursor: pointer;
     touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
+    transition: color var(--fast) var(--ease), background var(--fast) var(--ease);
   }
-  .bottom-nav__icon { font-size: 20px; line-height: 1.2; }
-  .bottom-nav__btn--active {
-    color: var(--on-primary-soft);
-    background: var(--primary-soft);
-  }
-  .bottom-nav__btn:active { transform: scale(0.95); }
+  .bottom-nav__icon { width: 21px; height: 21px; }
+  .bottom-nav__btn--active { background: var(--primary-soft); color: var(--on-primary-soft); }
+  .bottom-nav__btn:active { transform: scale(0.96); }
 
-  /* --- FAB: Add model, thumb-reachable above the bottom bar --- */
+  /* --- FAB: quick "Add model", clear of the bottom bar and the cards --- */
   .fab {
     display: grid;
     place-items: center;
     position: fixed;
     right: 16px;
-    bottom: calc(84px + var(--safe-b));
+    bottom: calc(92px + var(--safe-b));
     z-index: 39;
-    width: 56px;
-    height: 56px;
+    width: 50px;
+    height: 50px;
     border: none;
-    border-radius: 999px;
+    border-radius: 50%;
     background: var(--primary);
-    color: #fff;
-    font-size: 28px;
-    font-weight: 300;
+    color: var(--primary-ink);
+    font-size: 24px;
+    font-weight: 400;
     line-height: 1;
-    box-shadow: 0 8px 24px rgba(50, 205, 50, 0.45);
+    box-shadow: 0 10px 24px -8px rgba(31, 191, 75, 0.7), 0 2px 6px rgba(16, 24, 40, 0.12);
     cursor: pointer;
     touch-action: manipulation;
+    transition: transform 120ms var(--ease);
   }
   .fab:active { transform: scale(0.94); }
   .fab[hidden] { display: none !important; }
 
-  /* --- sticky filter toolbar: filters stay put while cards scroll --- */
-  .toolbar {
-    position: sticky;
-    top: var(--topbar-h);
-    z-index: 15;
-    background: var(--bg);
-    padding: 10px 0;
-    margin-left: -2px;
-    margin-right: -2px;
-    border-radius: 0 0 14px 14px;
+  .warning-note { font-size: 12.5px; padding: 12px 14px; }
+}
+
+/* Phones below 380px: keep the three action buttons legible. */
+@media (max-width: 380px) {
+  .content, #tab-staff, #tab-checklist { padding-left: 12px; padding-right: 12px; }
+  .toolbar { margin-left: -12px; margin-right: -12px; padding-left: 12px; padding-right: 12px; }
+  tbody tr { padding: 12px; }
+  td.cell-actions .btn { font-size: 12.5px; padding: 8px 4px; }
+  .bottom-nav__btn { font-size: 9.5px; }
+}
+
+/* ---------------------------------------------------------------------------
+   22. Motion preferences
+   --------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
-
-  /* --- cards: softer, rounder, more premium --- */
-  tbody tr {
-    border-radius: 20px;
-    border-color: #E9ECEC;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-    padding: 16px;
-  }
-
-  /* --- price / payout as a highlighted banner inside the card --- */
-  td.cell-price,
-  td[data-label="Payout"],
-  td[data-label="Price"] {
-    background: var(--primary-soft);
-    border: 1px solid rgba(50, 205, 50, 0.25);
-    border-radius: 14px;
-    padding: 10px 14px;
-    margin: 8px 0 4px;
-  }
-  td.cell-price::before,
-  td[data-label="Payout"]::before,
-  td[data-label="Price"]::before {
-    color: var(--on-primary-soft);
-    font-size: 11px;
-  }
-
-  /* Variants is the primary action on a catalog card. */
-  td.cell-actions [data-action="variants"] {
-    background: var(--primary);
-    color: #fff;
-    box-shadow: 0 4px 12px rgba(50, 205, 50, 0.3);
-  }
-  td.cell-actions [data-action="delete-model"] {
-    background: var(--error-soft);
-    color: var(--error);
-  }
-
-  /* --- empty states get an icon + breathing room --- */
-  .empty { font-size: 15px; }
-  .empty::before {
-    content: "📭";
-    display: block;
-    font-size: 36px;
-    margin-bottom: 10px;
-  }
-
-  /* --- topbar gets a soft shadow so sticky content slides under it --- */
-  .topbar { box-shadow: 0 1px 12px rgba(0, 0, 0, 0.05); }
-
-  /* --- rule / checklist / staff cards match the new radius --- */
-  .rule-card, .ck-card, .card, .job-card { border-radius: 20px; }
-
-  /* Search field gets a magnifier affordance. */
-  input[type="search"] {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: 12px center;
-    padding-left: 40px !important;
-  }
+  .stepper__btn.is-current .stepper__dot { transform: none; }
 }
 
-/* ===========================================================================
-   CHECKLIST REDESIGN — question moves and answer moves are now two clearly
-   separate, labelled controls. Before, both were identical tiny ↑ ↓ ✕ icons
-   with only a tooltip, so it was impossible to tell what would move.
-   =========================================================================== */
+/* ---------------------------------------------------------------------------
+   23. Print — an order sheet is sometimes the only paper in the shop
+   --------------------------------------------------------------------------- */
 
-/* --- question header: "Question 2 of 5" + id --- */
-.ck-qhead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-.ck-qnum {
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--on-primary-soft);
-  background: var(--primary-soft);
-  border-radius: 999px;
-  padding: 5px 12px;
-}
-.ck-qid { color: var(--text-tertiary); font-size: 12px; }
-.ck-qid code { background: var(--bg); padding: 2px 7px; border-radius: 6px; }
-
-.ck-clean-note {
-  margin: 10px 0 4px;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-  background: var(--bg);
-  border-radius: 10px;
-  padding: 8px 11px;
-}
-
-/* --- question move bar: one labelled place for moving the whole question --- */
-.ck-qmove {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px dashed var(--border-strong);
-}
-.ck-qmove__label {
-  font-size: 12.5px;
-  font-weight: 700;
-  color: var(--text-secondary);
-  margin-right: auto;
-}
-.ck-move-btn {
-  min-height: 40px;
-  padding: 9px 14px;
-  font-size: 13px;
-  white-space: nowrap;
-}
-.ck-move-btn:disabled { opacity: 0.4; }
-
-/* --- answer rows: number, text, %, then labelled move group --- */
-.ck-opt {
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  border: 1px solid transparent;
-}
-.ck-opt--clean {
-  background: var(--success-soft);
-  border-color: rgba(34, 197, 94, 0.35);
-}
-.ck-opt__n small { font-size: 9px; font-weight: 600; opacity: 0.7; margin-left: 1px; }
-.ck-opt__move {
-  display: inline-flex;
-  gap: 6px;
-  flex: none;
-  margin-left: auto;
-}
-.ck-opt__clean-tag {
-  flex: 1 1 100%;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--on-primary-soft);
-}
-
-/* Flash the moved item so the eye can follow where it went. */
-@keyframes ck-flash {
-  0% { outline: 3px solid var(--primary); outline-offset: 2px; }
-  100% { outline: 3px solid transparent; outline-offset: 2px; }
-}
-.ck-flash { animation: ck-flash 1.4s ease; border-radius: 12px; }
-
-/* --- pricing move buttons get the same labelled treatment --- */
-.rule-row__move .btn--tiny {
-  min-height: 36px;
-  padding: 8px 12px;
-  font-size: 12.5px;
-}
-
-/* --- mobile: answer moves drop to their own full-width row --- */
-@media (max-width: 720px) {
-  .ck-opt { padding: 10px; gap: 8px; }
-  .ck-opt__move {
-    flex: 1 1 100%;
-    margin-left: 0;
-    display: grid;
-    grid-template-columns: 1fr 1fr auto;
-    gap: 8px;
-  }
-  .ck-opt__move .ck-move-btn {
-    width: 100%;
-    min-height: 48px;
-    font-size: 14px;
-    border-radius: 12px;
-  }
-  .ck-opt__move .btn--danger { min-width: 52px; }
-
-  /* Question move bar: three big labelled buttons, full width. */
-  .ck-qmove { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .ck-qmove__label { grid-column: 1 / -1; margin-right: 0; font-size: 13px; }
-  .ck-qmove .ck-move-btn { width: 100%; min-height: 50px; font-size: 14px; border-radius: 12px; }
-  .ck-qmove .btn--danger { grid-column: 1 / -1; }
-
-  .ck-qhead { margin-bottom: 8px; }
-  .ck-clean-note { font-size: 13px; }
-}
-
-/* ===========================================================================
-   INSPECTOR PRICE PILLS — every answer shows what it costs (% + ₹) so the
-   agent can decide without guessing. Display only; no logic changed.
-   =========================================================================== */
-
-.ck-pick {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-.ck-pick__label { flex: 1 1 auto; min-width: 0; text-align: left; }
-
-/* The price pill: bold, pill-shaped, impossible to miss. */
-.ck-pick__pct {
-  flex: none;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 5px;
-  margin-left: 0;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: var(--error-soft);
-  color: var(--error);
-  font-size: 13px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.ck-pick__money {
-  font-size: 11.5px;
-  font-weight: 700;
-  opacity: 0.85;
-}
-/* Clean answer: green 0% — good news, not a finding. */
-.ck-pick__pct--clean {
-  background: var(--success-soft);
-  color: var(--on-primary-soft);
-}
-/* Priced at zero (not yet priced by the shop): quiet grey 0%. */
-.ck-pick__pct--zero {
-  background: var(--bg);
-  color: var(--text-tertiary);
-  font-weight: 700;
-}
-/* Selected answer keeps its pill readable on the tinted button. */
-.ck-pick.is-on .ck-pick__pct { background: rgba(255, 255, 255, 0.75); }
-.ck-pick--clean.is-on .ck-pick__pct--clean { background: rgba(255, 255, 255, 0.75); }
-
-/* Question text: larger and bolder so it reads at arm's length outdoors. */
-.ck-row__q { font-size: 15px; font-weight: 700; line-height: 1.4; }
-.ck-row__q .cell-sub { font-size: 13px; margin-top: 3px; }
-
-/* Flow (one question at a time): bigger pills, full-width buttons. */
-.flow .ck-pick__pct { font-size: 14px; padding: 6px 12px; }
-.flow .ck-pick__money { font-size: 12.5px; }
-.flow .ck-row__q { font-size: 1.125rem; }
-
-/* Recorded answers: the % rides beside the answer text. */
-.job-detail__cost { font-weight: 700; }
-
-/* Non-clean answer left at 0% — cannot be saved. Flagged in the editor so
-   it is fixed before the Save button is ever pressed. */
-.ck-pct--zero {
-  border-color: var(--error) !important;
-  background: var(--error-soft) !important;
-  color: var(--error);
-  font-weight: 700;
-}
-.ck-zero-note {
-  margin: 10px 0 4px;
-  font-size: 12.5px;
-  font-weight: 600;
-  line-height: 1.5;
-  color: #92651a;
-  background: var(--warning-soft);
-  border-radius: 10px;
-  padding: 8px 11px;
-}
-
-/* ===========================================================================
-   CHECKLIST EDITOR — COMPACT MODE
-   The question cards ate too much vertical space. Same layout, tighter skin:
-   smaller paddings, rows and fonts so more questions fit on one screen.
-   Touch targets stay >= 36px; the mobile block keeps them comfortable.
-   =========================================================================== */
-
-/* --- desktop compaction --- */
-.ck-card { padding: 12px 14px; margin-bottom: 10px; border-radius: 14px; }
-.ck-qhead { margin-bottom: 6px; }
-.ck-qnum { font-size: 10.5px; padding: 3px 10px; }
-.ck-qid code { padding: 1px 6px; }
-.ck-head__fields { gap: 8px; }
-.ck-head__fields input { padding: 6px 10px; font-size: 13px; min-height: 36px; }
-.ck-clean-note { margin: 6px 0 4px; padding: 5px 9px; font-size: 11.5px; line-height: 1.4; border-radius: 8px; }
-.ck-zero-note { margin: 6px 0 4px; padding: 5px 9px; font-size: 11.5px; line-height: 1.4; border-radius: 8px; }
-.ck-opts { margin: 6px 0; }
-.ck-opt { gap: 6px; margin-bottom: 4px; }
-.ck-opt__n { width: 20px; height: 20px; font-size: 10px; }
-.ck-opt__text { padding: 5px 9px; font-size: 13px; min-height: 34px; border-radius: 7px; }
-.ck-opt__pctinput { width: 48px; padding: 5px 6px; font-size: 13px; min-height: 34px; border-radius: 7px; }
-.ck-opt__move .btn--tiny { min-height: 30px; min-width: 0; padding: 3px 8px; font-size: 12px; border-radius: 7px; }
-.ck-opt__clean-tag { font-size: 11px; margin-top: -2px; }
-.ck-opts .btn { padding: 5px 10px; font-size: 12.5px; min-height: 32px; }
-.ck-qmove { margin-top: 8px; padding-top: 8px; gap: 6px; }
-.ck-qmove .btn--small { padding: 5px 10px; font-size: 12.5px; min-height: 32px; border-radius: 8px; }
-.ck-qmove__label { font-size: 12px; }
-
-/* --- mobile compaction: smaller cards, fields sit side by side --- */
-@media (max-width: 720px) {
-  .ck-card { padding: 12px 12px; border-radius: 14px; margin-bottom: 10px; }
-
-  /* Hint and Section share a row; Question gets the full width. */
-  .ck-head__fields { flex-direction: row; flex-wrap: wrap; gap: 6px; }
-  .ck-head__fields .field--grow:first-child { flex: 1 1 100%; }   /* Question */
-  .ck-head__fields .field--grow:nth-child(2) { flex: 1 1 55%; width: auto; }  /* Hint */
-  .ck-head__fields .field:nth-child(3) { flex: 1 1 35%; width: auto; }        /* Section */
-  .ck-head__fields input { min-height: 38px; padding: 6px 10px; font-size: 14px; border-radius: 9px; }
-  .ck-head__fields .field > span { font-size: 11px; }
-
-  .ck-opt { gap: 5px; margin-bottom: 4px; }
-  .ck-opt__n { width: 22px; height: 22px; font-size: 11px; }
-  .ck-opt__text { min-height: 38px; padding: 6px 10px; font-size: 15px; border-radius: 9px; }
-  .ck-opt__pctinput { width: 56px; min-width: 0; min-height: 38px; padding: 6px 6px; font-size: 14px; border-radius: 9px; }
-  .ck-opt__pct { gap: 2px; font-size: 11px; }
-
-  /* Move answer: three compact buttons on one line. */
-  .ck-opt__move { gap: 4px; }
-  .ck-opt__move .btn--tiny { min-height: 36px; min-width: 36px; padding: 4px 7px; font-size: 12px; border-radius: 8px; }
-
-  .ck-opt__clean-tag { font-size: 10.5px; margin: 1px 0 2px 28px; }
-
-  /* Move question bar: one tidy row instead of a 2x2 grid. */
-  .ck-qmove { display: flex; flex-wrap: nowrap; gap: 5px; margin-top: 8px; padding-top: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .ck-qmove__label { display: none; }
-  .ck-qmove .ck-move-btn { flex: 1 1 auto; width: auto; min-height: 38px; padding: 5px 8px; font-size: 12px; border-radius: 8px; white-space: nowrap; }
-  .ck-qmove .btn--danger { grid-column: auto; }
-
-  .ck-clean-note { font-size: 11px; margin: 6px 0 2px; padding: 4px 9px; }
-  .ck-zero-note { font-size: 11px; margin: 6px 0 2px; padding: 4px 9px; }
-  .ck-opts { margin: 6px 0; }
-  .ck-opts .btn { min-height: 34px; font-size: 12.5px; padding: 4px 10px; }
-  .ck-qhead { margin-bottom: 6px; }
+@media print {
+  .topbar, .tabs, .bottom-nav, .fab, .toolbar, .cell-actions, .od__foot, .toast-host { display: none !important; }
+  body { display: block; background: #fff; }
+  .content, #tab-staff, #tab-checklist { padding: 0; }
+  .table-wrap, .card, .rule-card { box-shadow: none; border-color: #ccc; }
 }
