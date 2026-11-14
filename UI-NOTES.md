@@ -133,3 +133,64 @@ without the weight the browser would fake-bold them.
   inspector's pickup list and all four of its steps. No console errors.
 - Tested with mocked data, so the real Firestore rules and collections were
   never touched.
+
+## Impeccable pass (skill v4.9.1, engine 0.1.24)
+
+Run after the first refresh, using the installed `impeccable` skill in
+**Operate** mode (task surface, not a brand page). Everything below is still
+`style.css` only; no markup, class name or handler moved.
+
+### Detector before → after
+
+`impeccable detect` on the source tree and on the rendered page (mock harness,
+Chromium) went from **25 findings to 0** on the rendered pages and **1 advisory**
+on the source.
+
+| Finding | Where | Fix |
+| --- | --- | --- |
+| `tight-leading`-class failures: `undersized-ui-text` ×14 (10.5px table heads, 9.5px bottom-nav labels, 10px rail label) | table headers, mobile card labels, bottom nav, rail section label | new `--text-micro: 11px` token; every functional micro-label now sits on it |
+| `tiny-text` (11.5px body text) | login hint | 12.5px |
+| `low-contrast` 4.2:1 | `--text-tertiary` on the page ground | `#6B7785` → `#5F6B78` (5.0:1 on the ground, 5.4:1 on white) |
+| `low-contrast` 3.9:1 on `:hover` | `.btn--primary:hover` | hover now *lightens* (`#2ECB67`) so the dark ink keeps 5.8:1; press darkens to `#17A63F` and switches the label to `--on-primary` (5.2:1) |
+| `dark-glow` | mobile FAB shadow | zero-offset green glow → neutral two-layer shadow |
+| `side-tab` ×2 | `.warning-note`, `.field-help` | coloured 3px side bars removed: the note is now a tinted panel with an authored alert glyph (mask, not an emoji), the help line a plain hairline box |
+| `border-accent-on-rounded` ×2 | `.warning-note`, `.detail-row--total` | 2px accent rule dropped from the rounded note; the payout ledger rule is 1px |
+| `em-dash-overuse` (advisory) | `index.html` copy | **not changed** — it is the panel's own prose, not styling; say the word and it gets a pass |
+
+Craft-floor items the detector does not catch, also fixed: the rail's selected
+tab used `inset 3px 0 0` as a coloured side bar (now a tinted pill with 600
+weight), and the focus ring moved off the button green onto a dedicated
+`--focus: #0E7D2C` (5.3:1 on white, 4.8:1 on the ground) so it is visible
+against the green primary fill.
+
+### Operate-mode review that the detector cannot do
+
+- **One accent weight per screen.** On phones every row's *Variants* button was
+  a saturated green block, which put six primaries under the one real primary
+  ("+ Add model"). It now keeps the same soft treatment it has on desktop, so
+  the accent still means "primary action, current selection, state".
+- **Prose measure.** The Firebase-project note ran ~200 characters per line;
+  capped at 84ch.
+- **Motion.** `--fast` moved 140 → 160ms, inside the 150–250ms band.
+- **State coverage** (audited, already present): hover / focus-visible / active /
+  disabled on buttons, inputs and selects; disabled Save in the checklist;
+  empty and error rows; stale-cache note.
+
+### Known deviations, deliberately kept
+
+- Six text glyphs (`+`, `↻`, `↑`, `↓`, `×`, `✓`) come from `app.js` templates and
+  are still characters rather than an SVG icon set. Replacing them means
+  touching markup and copy, which is out of scope here.
+- The phone FAB can sit over the last row's *Delete* at some scroll positions.
+  It is the standard floating-button trade-off; hiding it would change the
+  flow, so it stays.
+- Below 340px the bottom bar goes icon-only: six 11px labels physically cannot
+  share a 320px bar (verified — "Checklist" collides with "Staff" at 320px).
+  The labels stay in the DOM, so accessible names are intact.
+
+### Numbers
+
+- `style.css`: 493 top-level rules, 0 parse errors, 0 dropped declarations.
+- Rendered pages: 22 screenshots re-taken at 1440 / 860 / 390 / 360 / 320px,
+  no console errors.
+- `app.js`, `index.html` markup, tab order and every handler: untouched.
