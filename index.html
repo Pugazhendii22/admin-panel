@@ -210,6 +210,13 @@
 
         <div class="toolbar">
           <label class="field field--inline">
+            <span>Rules for</span>
+            <select id="pricing-scope" class="scope-select"
+                    title="Global rules apply to every brand. Pick a brand to give it its own.">
+              <option value="">All brands (global)</option>
+            </select>
+          </label>
+          <label class="field field--inline">
             <span>Show percentages as money on a phone worth</span>
             <input id="pricing-base" type="number" min="0" step="500"
                    value="20000" inputmode="numeric" />
@@ -469,12 +476,23 @@
         agent still confirms the amount themselves, with a reason.
       </p>
       <div class="pricing-toolbar">
+        <label class="field field--inline">
+          <span>Checklist for</span>
+          <select id="checklist-scope" class="scope-select"
+                  title="The global checklist is asked for every brand. Pick a brand to give it its own.">
+            <option value="">All brands (global)</option>
+          </select>
+        </label>
         <button id="checklist-refresh" class="btn btn--ghost" type="button">↻ Reload</button>
         <button id="checklist-seed" class="btn btn--ghost btn--small" type="button"
                 title="Fill in a standard checklist, for you to edit">
           Fill in the standard checklist
         </button>
         <button id="checklist-add" class="btn btn--primary btn--small" type="button">+ Question</button>
+        <button id="checklist-reset" class="btn btn--ghost btn--small" type="button" hidden
+                title="Delete this brand's own checklist and ask the global one again">
+          Use global again
+        </button>
         <button id="checklist-save" class="btn btn--primary btn--small" type="button" disabled>Save</button>
       </div>
       <datalist id="ck-groups"></datalist>

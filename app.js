@@ -1909,10 +1909,90 @@ const CHECKUP_SUGGESTIONS = [
   ["vibration", "Vibration motor fault", 3, ""],
 ];
 
+// --- global and per-brand rules ---------------------------------------------
+//
+// Every rule document keeps its global list under `options`, and that is what
+// every brand is quoted from. A brand can be given its own list under
+// `brand_options.<brand>`, which then replaces the global one for that brand
+// outright — not merged row by row, because a shop that types Apple's screen
+// grades means the list it typed. The checklist does the same with
+// `questions` and `brand_questions.<brand>`.
+//
+// The key is the brand name trimmed and lower-cased. It must match
+// `brandRuleKey` in `lib/shared/services/brand_rules.dart`, which is how the
+// app picks a list, and the brand on an order, which is how the inspector's
+// job card picks one.
+function brandRuleKey(name) {
+  return String(name || "").trim().toLowerCase();
+}
+
+function brandLabel(key) {
+  return KNOWN_BRANDS.find((b) => brandRuleKey(b) === key) || key;
+}
+
+// A brand map as read from Firestore, keeping only the entries that are lists.
+// Anything else under the field is junk a console edit left behind, and an
+// editor that tried to render it would be worse than one that ignores it.
+function brandLists(raw, normalise) {
+  const out = {};
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    for (const [key, list] of Object.entries(raw)) {
+      if (Array.isArray(list)) out[brandRuleKey(key)] = list.map(normalise);
+    }
+  }
+  return out;
+}
+
+// Brand dropdown entries: every known brand, plus any brand that already has
+// its own rules saved under a name this list does not know, so a list written
+// once is never stranded where nobody can open it.
+function fillScopeSelect(select, customised) {
+  if (!select) return;
+  const current = select.value;
+  const keys = new Set(KNOWN_BRANDS.map(brandRuleKey));
+  for (const k of customised) keys.add(k);
+  const sorted = [...keys].sort((a, b) => brandLabel(a).localeCompare(brandLabel(b)));
+  select.innerHTML =
+    `<option value="">All brands (global)</option>` +
+    sorted
+      .map((k) => {
+        const own = customised.has(k);
+        return `<option value="${escapeHtml(k)}">${escapeHtml(brandLabel(k))}${
+          own ? " — own rules" : ""
+        }</option>`;
+      })
+      .join("");
+  select.value = current;
+}
+
 // Loaded documents, in display order. Null until the tab is first opened —
 // these are eight reads and the panel opens on the catalog.
 let pricingDocs = null;
 let pricingLoading = false;
+
+// "" for the global rules, else the brand key being edited.
+let pricingScope = "";
+
+// Points every document's working list at the scope being edited. The working
+// list is the same array as the stored one, so the row editors below — which
+// only ever touch `d.options` — edit whichever list is showing.
+function applyPricingScope() {
+  for (const d of pricingDocs || []) {
+    d.options = !pricingScope || d.kind === "scrap"
+      ? d.global
+      : d.brands[pricingScope] || null;
+  }
+}
+
+function pricingCustomised() {
+  const keys = new Set();
+  for (const d of pricingDocs || []) {
+    for (const [k, list] of Object.entries(d.brands || {})) {
+      if (list.length) keys.add(k);
+    }
+  }
+  return keys;
+}
 
 // What a percentage is worth, for the preview column. A number to think in,
 // not a figure that goes anywhere near a real quote.
@@ -1967,7 +2047,8 @@ async function loadPricingRules() {
     const take = (id, known) => {
       const data = found.get(id);
       const raw = Array.isArray(data?.options) ? data.options : [];
-      const options = raw.map((o) => ({ ...(o && typeof o === "object" ? o : {}) }));
+      const copy = (o) => ({ ...(o && typeof o === "object" ? o : {}) });
+      const options = raw.map(copy);
       found.delete(id);
       docs.push({
         id,
@@ -1976,6 +2057,8 @@ async function loadPricingRules() {
         used: known?.used || "",
         inApp: Boolean(known),
         missing: !data,
+        global: options,
+        brands: brandLists(data?.brand_options, copy),
         options,
         dirty: false,
       });
@@ -1986,6 +2069,7 @@ async function loadPricingRules() {
     for (const id of [...found.keys()].sort()) take(id, null);
 
     pricingDocs = docs;
+    applyPricingScope();
     renderPricing();
   } catch (e) {
     host.innerHTML = `<p class="empty empty--error">
@@ -2003,7 +2087,10 @@ function renderPricing() {
   const live = pricingDocs.filter((d) => d.inApp);
   const rest = pricingDocs.filter((d) => !d.inApp);
 
+  fillScopeSelect(el("pricing-scope"), pricingCustomised());
+
   host.innerHTML =
+    scopeBanner(pricingScope, "rules") +
     live.map(ruleCard).join("") +
     (rest.length
       ? `<div class="rule-divider">
@@ -2021,7 +2108,66 @@ function renderPricing() {
   renderPricingDatalists();
 }
 
+// The line at the top of a tab saying whose rules are on screen. A price typed
+// into the wrong scope is the mistake this whole split invites, so the scope
+// is said in words above the cards and not only in the dropdown.
+function scopeBanner(scope, what) {
+  if (!scope) {
+    return `<p class="scope-banner">
+      Editing the <strong>global</strong> ${what} — every brand uses these
+      unless it has its own. Pick a brand above to give it its own.
+    </p>`;
+  }
+  return `<p class="scope-banner scope-banner--brand">
+    Editing <strong>${escapeHtml(brandLabel(scope))}</strong> only. A section
+    marked “uses global” follows the global ${what} until you customise it.
+  </p>`;
+}
+
+// A section in brand scope that has no list of its own.
+function inheritedRuleCard(d) {
+  const brand = brandLabel(pricingScope);
+  const scrap = d.kind === "scrap";
+  const rows = d.global
+    .map((o) => {
+      const name = o.label || o.question || o.key || "—";
+      const value = scrap ? money(amountOf(o)) : `${percentOf(o)}%`;
+      return `<li><span>${escapeHtml(name)}</span><span>${escapeHtml(value)}</span></li>`;
+    })
+    .join("");
+
+  return `
+    <section class="card rule-card rule-card--inherited" data-rule="${escapeHtml(d.id)}">
+      <div class="rule-head">
+        <div>
+          <h3>${escapeHtml(d.title)}
+            <span class="badge">uses global</span>
+          </h3>
+          <p class="cell-sub"><code>deduction_rules/${escapeHtml(d.id)}</code></p>
+          <p class="rule-used">${
+            scrap
+              ? "Scrap prices are not split by brand here: every row already names its own brand and series. Switch to All brands to edit them."
+              : `${escapeHtml(brand)} is quoted from the global list below. Customise it to give ${escapeHtml(brand)} its own — the global list stays as it is for every other brand.`
+          }</p>
+        </div>
+        ${scrap
+          ? ""
+          : `<div class="rule-head__actions">
+               <button class="btn btn--small btn--primary" data-act="customise" type="button">
+                 Customise for ${escapeHtml(brand)}
+               </button>
+             </div>`}
+      </div>
+      ${rows
+        ? `<ul class="rule-inherited">${rows}</ul>`
+        : `<p class="empty">The global list is empty.</p>`}
+    </section>`;
+}
+
 function ruleCard(d) {
+  if (pricingScope && !d.options) return inheritedRuleCard(d);
+  if (pricingScope && d.kind === "scrap") return inheritedRuleCard(d);
+
   const base = pricingBase();
   const worst = d.options.reduce((most, o) => Math.max(most, percentOf(o)), 0);
 
@@ -2030,15 +2176,26 @@ function ruleCard(d) {
       <div class="rule-head">
         <div>
           <h3>${escapeHtml(d.title)}
+            ${pricingScope
+              ? `<span class="badge badge--success">${escapeHtml(brandLabel(pricingScope))} only</span>`
+              : ""}
             ${d.dirty ? `<span class="badge badge--warning">unsaved</span>` : ""}
           </h3>
           <p class="cell-sub">
-            <code>deduction_rules/${escapeHtml(d.id)}</code>
+            <code>deduction_rules/${escapeHtml(d.id)}${
+              pricingScope ? ` · brand_options.${escapeHtml(pricingScope)}` : ""
+            }</code>
             ${d.missing ? ` · <strong>not created yet</strong>` : ""}
           </p>
           ${d.used ? `<p class="rule-used">${d.used}</p>` : ""}
         </div>
         <div class="rule-head__actions">
+          ${pricingScope
+            ? `<button class="btn btn--small btn--ghost" data-act="reset" type="button"
+                       title="Delete this brand's own list and quote it from the global one again">
+                 Use global again
+               </button>`
+            : ""}
           ${d.kind === "checkup"
             ? `<button class="btn btn--small btn--ghost" data-act="seed" type="button"
                        title="Fill in every test the app runs, for you to price">
@@ -2269,7 +2426,9 @@ function faultNameOptions() {
   for (const d of pricingDocs || []) {
     if (d.kind === "checkup") continue;
     if (d.kind === "questions") {
-      for (const o of d.options) if (o.label) names.add(String(o.label));
+      // The list on screen, or the global one a brand is inheriting — the
+      // app links a finding to whichever of the two that brand is asked.
+      for (const o of d.options || d.global) if (o.label) names.add(String(o.label));
     } else if (d.inApp) {
       names.add(d.title);
     }
@@ -2359,6 +2518,48 @@ pricingHost?.addEventListener("click", async (e) => {
   const i = Number(btn.dataset.index);
 
   switch (btn.dataset.act) {
+    case "customise": {
+      if (!pricingScope) return;
+      // A copy of the global list to start from, so customising one figure
+      // does not mean retyping every row. Deep enough that editing it leaves
+      // the global list alone.
+      d.brands[pricingScope] = d.global.map((o) => ({ ...o }));
+      d.dirty = true;
+      applyPricingScope();
+      renderPricing();
+      toast(
+        `${d.title} copied for ${brandLabel(pricingScope)}. Change what differs, then Save.`,
+        "info"
+      );
+      break;
+    }
+
+    case "reset": {
+      if (!pricingScope) return;
+      const brand = brandLabel(pricingScope);
+      if (!confirm(
+        `Delete ${brand}'s own ${d.title} and quote ${brand} from the global list again?\n\n` +
+          "This is written straight away."
+      )) return;
+      btn.disabled = true;
+      try {
+        await setDoc(
+          doc(db, "deduction_rules", d.id),
+          { brand_options: { [pricingScope]: deleteField() } },
+          { merge: true }
+        );
+        delete d.brands[pricingScope];
+        d.dirty = false;
+        applyPricingScope();
+        renderPricing();
+        toast(`${brand} now uses the global ${d.title}.`, "success");
+      } catch (err) {
+        toast("Could not reset: " + err.message, "error");
+        btn.disabled = false;
+      }
+      break;
+    }
+
     case "add":
       d.options.push(blankOption(d.kind));
       d.dirty = true;
@@ -2499,20 +2700,41 @@ async function savePricingDoc(d, btn) {
     return;
   }
 
+  // An empty brand list is read by the app as "use the global one", so saving
+  // one would look like it worked and change nothing. Said here instead.
+  if (pricingScope && d.options.length === 0) {
+    toast(
+      `${brandLabel(pricingScope)}'s list is empty, so it would use the global one. ` +
+        "Add an option, or press “Use global again”.",
+      "error"
+    );
+    return;
+  }
+
   btn.disabled = true;
   const previous = btn.textContent;
   btn.textContent = "Saving…";
+  const cleaned = d.options.map((o) => optionForSave(o, d.kind));
   try {
     await setDoc(
       doc(db, "deduction_rules", d.id),
-      { options: d.options.map((o) => optionForSave(o, d.kind)) },
+      // A brand's list is written into its own key of the map; merge leaves
+      // every other brand's list, and the global one, exactly as they were.
+      pricingScope
+        ? { brand_options: { [pricingScope]: cleaned } }
+        : { options: cleaned },
       // Merge, so a top-level field this panel never shows — a title, a note,
       // anything a later version adds — survives a save made from here.
       { merge: true }
     );
     d.dirty = false;
     d.missing = false;
-    toast(`${d.title} saved — the app quotes from it immediately.`, "success");
+    toast(
+      pricingScope
+        ? `${d.title} saved for ${brandLabel(pricingScope)} — the app quotes ${brandLabel(pricingScope)} from it immediately.`
+        : `${d.title} saved — the app quotes from it immediately.`,
+      "success"
+    );
     renderPricing();
   } catch (err) {
     toast("Could not save: " + err.message, "error");
@@ -2550,6 +2772,13 @@ el("rule-form")?.addEventListener("submit", async (e) => {
     return;
   }
 
+  // Always created as a global list: a category has to exist for everyone
+  // before any one brand can differ from it.
+  const options = [blankOption(kind)];
+  if (pricingScope) {
+    pricingScope = "";
+    el("pricing-scope").value = "";
+  }
   pricingDocs.push({
     id,
     title: title || id,
@@ -2557,9 +2786,12 @@ el("rule-form")?.addEventListener("submit", async (e) => {
     used: "",
     inApp: false,
     missing: true,
-    options: [blankOption(kind)],
+    global: options,
+    brands: {},
+    options,
     dirty: true,
   });
+  applyPricingScope();
   ruleModal.close();
   renderPricing();
   toast("Category added below. Fill it in and press Save to write it.", "info");
@@ -2568,6 +2800,26 @@ el("rule-form")?.addEventListener("submit", async (e) => {
 el("pricing-base")?.addEventListener("input", () => {
   if (pricingDocs) renderPricing();
 });
+el("pricing-scope")?.addEventListener("change", (e) => {
+  const next = e.target.value;
+  const unsaved = (pricingDocs || []).some((d) => d.dirty);
+  if (unsaved && !confirm("Switch and lose the changes you have not saved?")) {
+    e.target.value = pricingScope;
+    return;
+  }
+  pricingScope = next;
+  if (unsaved) {
+    // Reloaded rather than kept: an unsaved edit is sitting in a list that
+    // is about to go off screen, and leaving it there would let it be saved
+    // later from a scope nobody is looking at.
+    pricingDocs = null;
+    loadPricingRules();
+    return;
+  }
+  applyPricingScope();
+  renderPricing();
+});
+
 el("pricing-refresh")?.addEventListener("click", () => {
   const unsaved = (pricingDocs || []).some((d) => d.dirty);
   if (unsaved && !confirm("Reload and lose the changes you have not saved?")) return;
@@ -2764,9 +3016,56 @@ function normaliseOption(o) {
   return { label: optLabel(o), percent: optPercent(o) };
 }
 
+// The global checklist (`questions`) and each brand's own (`brand_questions`).
+// Null until loaded.
+let checklistGlobal = null;
+let checklistBrands = {};
+
+// "" for the global checklist, else the brand key being edited.
+let checklistScope = "";
+
+// The list the editor below is working on: the global one, the scope's own
+// list, or null while a brand is inheriting. The same array as the stored
+// one, so the editor's handlers edit whichever is showing.
 let checklistQuestions = null;
 let checklistDirty = false;
 let checklistLoading = false;
+
+function applyChecklistScope() {
+  checklistQuestions = !checklistGlobal
+    ? null
+    : !checklistScope
+    ? checklistGlobal
+    : checklistBrands[checklistScope] || null;
+}
+
+function normaliseQuestion(q) {
+  return {
+    id: String(q?.id || ""),
+    group: String(q?.group || ""),
+    question: String(q?.question || ""),
+    hint: String(q?.hint || ""),
+    options: Array.isArray(q?.options) ? q.options.map(normaliseOption) : [],
+  };
+}
+
+// Which brand each order on screen is, so the job card's handlers — which
+// only carry an order id — can ask the right brand's checklist.
+const orderBrands = new Map();
+
+// The questions an order's brand is asked: its own list when it has one, the
+// global list otherwise. Mirrors `brandOptions` in the app.
+function checklistFor(orderId) {
+  const key = brandRuleKey(orderBrands.get(orderId));
+  const own = checklistBrands[key];
+  return own && own.length ? own : checklistGlobal || [];
+}
+
+// Every question any list knows, for naming an answer filed on an order —
+// filed against whichever list was live then, which may since have changed.
+function allChecklistQuestions() {
+  return [...(checklistGlobal || []), ...Object.values(checklistBrands).flat()];
+}
 
 /// A starting point, taken from what the shop already grades by hand.
 ///
@@ -2948,8 +3247,53 @@ function renderChecklist() {
   const host = el("checklist-list");
   if (!host) return;
 
-  if (!checklistQuestions) {
+  if (!checklistGlobal) {
     host.innerHTML = `<p class="empty">Loading…</p>`;
+    return;
+  }
+
+  const customised = new Set(
+    Object.entries(checklistBrands).filter(([, l]) => l.length).map(([k]) => k)
+  );
+  fillScopeSelect(el("checklist-scope"), customised);
+
+  const brand = brandLabel(checklistScope);
+  for (const id of ["checklist-add", "checklist-seed"]) {
+    const b = el(id);
+    if (b) b.disabled = !checklistQuestions;
+  }
+  const reset = el("checklist-reset");
+  if (reset) reset.hidden = !checklistScope || !checklistQuestions;
+
+  if (!checklistQuestions) {
+    // A brand following the global checklist.
+    host.innerHTML =
+      scopeBanner(checklistScope, "checklist") +
+      `<div class="card rule-card rule-card--inherited">
+         <div class="rule-head">
+           <div>
+             <h3>${escapeHtml(brand)} <span class="badge">uses global</span></h3>
+             <p class="rule-used">
+               Agents are asked the global checklist on every ${escapeHtml(brand)}
+               pickup. Customise it to give ${escapeHtml(brand)} its own — the
+               global checklist stays as it is for every other brand.
+             </p>
+           </div>
+           <div class="rule-head__actions">
+             <button class="btn btn--small btn--primary" data-ck="customise" type="button">
+               Customise for ${escapeHtml(brand)}
+             </button>
+           </div>
+         </div>
+         ${checklistGlobal.length
+           ? `<ul class="rule-inherited">${checklistGlobal
+               .map((q) => `<li><span>${escapeHtml(q.question || q.id)}</span>
+                             <span>${q.options.length} answers</span></li>`)
+               .join("")}</ul>`
+           : `<p class="empty">The global checklist is empty.</p>`}
+       </div>`;
+    const save = el("checklist-save");
+    if (save) save.disabled = true;
     return;
   }
 
@@ -2967,6 +3311,7 @@ function renderChecklist() {
       .map((q, i) => checklistCard(q, i, checklistQuestions.length))
       .join("");
   }
+  host.insertAdjacentHTML("afterbegin", scopeBanner(checklistScope, "checklist"));
 
   const groups = el("ck-groups");
   if (groups) {
@@ -2996,16 +3341,11 @@ async function loadChecklist() {
   checklistLoading = true;
   try {
     const snap = await getDoc(doc(db, "inspection_checklist", CHECKLIST_DOC));
-    const raw = snap.exists() ? snap.data()?.questions : [];
-    checklistQuestions = Array.isArray(raw)
-      ? raw.map((q) => ({
-          id: String(q?.id || ""),
-          group: String(q?.group || ""),
-          question: String(q?.question || ""),
-          hint: String(q?.hint || ""),
-          options: Array.isArray(q?.options) ? q.options.map(normaliseOption) : [],
-        }))
-      : [];
+    const data = snap.exists() ? snap.data() : {};
+    const raw = data?.questions;
+    checklistGlobal = Array.isArray(raw) ? raw.map(normaliseQuestion) : [];
+    checklistBrands = brandLists(data?.brand_questions, normaliseQuestion);
+    applyChecklistScope();
     checklistDirty = false;
     renderChecklist();
   } catch (e) {
@@ -3038,9 +3378,52 @@ function checklistId(question, taken) {
 }
 
 el("checklist-refresh")?.addEventListener("click", () => {
+  if (checklistDirty && !confirm("Reload and lose the changes you have not saved?")) return;
+  checklistGlobal = null;
   checklistQuestions = null;
   renderChecklist();
   loadChecklist();
+});
+
+el("checklist-scope")?.addEventListener("change", (e) => {
+  if (checklistDirty && !confirm("Switch and lose the changes you have not saved?")) {
+    e.target.value = checklistScope;
+    return;
+  }
+  checklistScope = e.target.value;
+  if (checklistDirty) {
+    // Reloaded, so an unsaved edit cannot sit in a list that is off screen.
+    checklistGlobal = null;
+    checklistQuestions = null;
+    renderChecklist();
+    loadChecklist();
+    return;
+  }
+  applyChecklistScope();
+  renderChecklist();
+});
+
+el("checklist-reset")?.addEventListener("click", async () => {
+  if (!checklistScope) return;
+  const brand = brandLabel(checklistScope);
+  if (!confirm(
+    `Delete ${brand}'s own checklist and ask the global one on ${brand} pickups again?\n\n` +
+      "This is written straight away."
+  )) return;
+  try {
+    await setDoc(
+      doc(db, "inspection_checklist", CHECKLIST_DOC),
+      { brand_questions: { [checklistScope]: deleteField() } },
+      { merge: true }
+    );
+    delete checklistBrands[checklistScope];
+    checklistDirty = false;
+    applyChecklistScope();
+    renderChecklist();
+    toast(`${brand} now uses the global checklist.`, "success");
+  } catch (err) {
+    toast("Could not reset: " + err.message, "error");
+  }
 });
 
 el("checklist-add")?.addEventListener("click", () => {
@@ -3128,6 +3511,22 @@ el("checklist-list")?.addEventListener("input", (e) => {
 
 el("checklist-list")?.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-ck]");
+  if (btn?.dataset.ck === "customise" && checklistScope && checklistGlobal) {
+    // Starts from a copy of the global checklist, ids included, so an answer
+    // filed under one keeps meaning the same question on either list.
+    checklistBrands[checklistScope] = checklistGlobal.map((q) => ({
+      ...q,
+      options: q.options.map((o) => ({ ...o })),
+    }));
+    applyChecklistScope();
+    markChecklistDirty();
+    renderChecklist();
+    toast(
+      `Global checklist copied for ${brandLabel(checklistScope)}. Change what differs, then Save.`,
+      "info"
+    );
+    return;
+  }
   if (!btn || !checklistQuestions) return;
   const qi = Number(btn.dataset.q);
   const q = checklistQuestions[qi];
@@ -3257,19 +3656,41 @@ el("checklist-save")?.addEventListener("click", async () => {
     return;
   }
 
+  // An empty brand list means "ask the global one", so saving it would change
+  // nothing while looking like it worked.
+  if (checklistScope && cleaned.length === 0) {
+    toast(
+      `${brandLabel(checklistScope)}'s checklist is empty, so it would use the global one. ` +
+        "Add a question, or press “Use global again”.",
+      "error"
+    );
+    return;
+  }
+
   btn.disabled = true;
   const previous = btn.textContent;
   btn.textContent = "Saving…";
   try {
     await setDoc(
       doc(db, "inspection_checklist", CHECKLIST_DOC),
-      { questions: cleaned },
+      // A brand's list goes into its own key; merge leaves every other
+      // brand's checklist and the global one untouched.
+      checklistScope
+        ? { brand_questions: { [checklistScope]: cleaned } }
+        : { questions: cleaned },
       { merge: true }
     );
-    checklistQuestions = cleaned;
+    if (checklistScope) checklistBrands[checklistScope] = cleaned;
+    else checklistGlobal = cleaned;
+    applyChecklistScope();
     checklistDirty = false;
     btn.textContent = previous;
-    toast("Checklist saved — agents see it on their next job.", "success");
+    toast(
+      checklistScope
+        ? `${brandLabel(checklistScope)} checklist saved — agents see it on their next ${brandLabel(checklistScope)} job.`
+        : "Checklist saved — agents see it on their next job.",
+      "success"
+    );
     renderChecklist();
   } catch (err) {
     toast("Could not save: " + err.message, "error");
@@ -4277,8 +4698,12 @@ function checkSummaryText(t) {
 }
 
 /// The name of a configured question, for a card rendering a filed answer.
-function checklistLabel(id) {
-  const q = (checklistQuestions || []).find((x) => x.id === id);
+function checklistLabel(id, orderId) {
+  // The order's own list first, then any list at all: an answer is filed
+  // against whichever list was live on the day, which may since have moved.
+  const q =
+    (orderId ? checklistFor(orderId) : []).find((x) => x.id === id) ||
+    allChecklistQuestions().find((x) => x.id === id);
   return q?.question || unpickKey(id);
 }
 
@@ -4294,8 +4719,11 @@ function checkLabel(id) {
 /// Null rather than an empty array on purpose: a shop that has not filled the
 /// checklist in keeps the fourteen built-in checks, so this ships without
 /// taking the agent's existing list away on the day it lands.
-function activeChecklist() {
-  const qs = (checklistQuestions || []).filter(
+function activeChecklist(orderId) {
+  // The questions an order's brand is asked. Without an order id (the
+  // editor's own previews) it is whichever list is being edited.
+  const source = orderId ? checklistFor(orderId) : checklistQuestions || [];
+  const qs = source.filter(
     (q) => String(q.question || "").trim() && (q.options || []).length >= 2
   );
   return qs.length ? qs : null;
@@ -4524,10 +4952,11 @@ function gradedChecksBlock(order, questions) {
 }
 
 function checksBlock(order) {
+  orderBrands.set(order.id, order.brand);
   // Once a finding is filed the list is a record, not a form.
   if (order.inspection) return recordedChecksBlock(order);
 
-  const questions = activeChecklist();
+  const questions = activeChecklist(order.id);
   if (questions) return gradedChecksBlock(order, questions);
 
   const claims = declaredClaims(order);
@@ -4582,6 +5011,7 @@ function checksBlock(order) {
 // and a list padded out to fourteen would say the phone was gone over when it
 // was not. A verdict under an id this panel no longer knows is still shown.
 function recordedChecksBlock(order) {
+  orderBrands.set(order.id, order.brand);
   const checks = order.inspection?.checks;
   if (!checks || typeof checks !== "object" || Array.isArray(checks)) return "";
 
@@ -4589,7 +5019,7 @@ function recordedChecksBlock(order) {
   // "pass"/"fail" and one filed after holds the answer the agent picked.
   // Neither is rewritten, so the record keeps saying what was actually
   // recorded at the time.
-  const configured = checklistQuestions || [];
+  const configured = [...checklistFor(order.id), ...allChecklistQuestions()];
   const rows = Object.keys(checks)
     .map((id) => {
       const value = checks[id];
@@ -4612,7 +5042,7 @@ function recordedChecksBlock(order) {
       return {
         id,
         group: q?.group || "",
-        what: checklistLabel(id),
+        what: checklistLabel(id, order.id),
         said: recordedPct > 0 ? `${value} (\u2212${recordedPct}%)` : value,
         // Without the question we cannot tell its clean answer from its
         // worst, so it is shown plainly rather than guessed at.
@@ -4659,7 +5089,7 @@ function recordedChecksBlock(order) {
 // also be a feat of memory.
 function faultHint(orderId) {
   const answers = checkAnswers.get(orderId) || {};
-  const questions = activeChecklist();
+  const questions = activeChecklist(orderId);
 
   const names = questions
     ? findingsTotal(questions, answers).lines.map(
@@ -4678,7 +5108,7 @@ function answeredChecks(orderId) {
   const answers = checkAnswers.get(orderId) || {};
   const out = {};
 
-  const questions = activeChecklist();
+  const questions = activeChecklist(orderId);
   if (questions) {
     // Only answers that are actually one of this question's options. The
     // rules cannot look inside the map — Firestore cannot iterate one — so
@@ -4699,7 +5129,9 @@ function answeredChecks(orderId) {
 }
 
 function wireChecks(host, orders = []) {
-  const questions = activeChecklist();
+  // Per order, because two jobs on screen can be different brands asking
+  // different lists.
+  const questionsOf = (orderId) => activeChecklist(orderId);
 
   // Drops the suggested figure into the amount box. A button rather than an
   // automatic fill: the agent is the one who has the phone in their hand,
@@ -4719,7 +5151,7 @@ function wireChecks(host, orders = []) {
 
       const reason = host.querySelector(`[data-reason="${CSS.escape(orderId)}"]`);
       if (reason && !reason.value.trim()) {
-        const found = findingsTotal(questions || [], answersFor(orderId)).lines;
+        const found = findingsTotal(questionsOf(orderId) || [], answersFor(orderId)).lines;
         reason.value = found.map((l) => `${l.answer} (${l.percent}%)`).join("; ");
       }
     });
@@ -4735,6 +5167,7 @@ function wireChecks(host, orders = []) {
       const questionId = parts.pop();
       const orderId = parts.join("|");
 
+      const questions = questionsOf(orderId);
       const question = (questions || []).find((q) => q.id === questionId);
       if (!question) return;
       const value = (question.options || [])[index];
@@ -5334,6 +5767,7 @@ function wireJobFlow(host) {
 function renderInspectorJobs(orders) {
   const host = el("inspector-list");
   if (!host) return;
+  for (const o of orders) orderBrands.set(o.id, o.brand);
   wireJobFlow(host);
 
   // An open pickup that is no longer in the list was reassigned or removed;
