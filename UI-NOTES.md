@@ -194,3 +194,27 @@ against the green primary fill.
 - Rendered pages: 22 screenshots re-taken at 1440 / 860 / 390 / 360 / 320px,
   no console errors.
 - `app.js`, `index.html` markup, tab order and every handler: untouched.
+
+## Regression found by the shop, not by the detector: inspector answer pictures
+
+The `Check` step's answer photos (the whole + zoom pair added in commit
+`54313a1`) were being laid out by a button whose width came from its content,
+while the photos were sized as a percentage of that same button. The browser
+resolved the circle at zero, so every photo was 0px wide — picture answers
+showed only their label. The detector has no rule for this; the shop spotted
+it.
+
+Fixed in `.ck-pick--pic` / `.ck-pick__pics` / `.ck-pick__img`: the answer card
+now always has a definite width, and its two photos are `calc(50% - 4px)` of
+it with `object-fit: contain`, so nothing gets cropped out of a photo whose
+whole job is showing a crack. Verified with the checker's own files: 8 photos
+per pictured question, all loaded, 252px each at 1440 and 143px at 390, no
+horizontal overflow (`screens-after/d-inspector-check.png`,
+`m-inspector-check.png`).
+
+The preview harness was also lying about this feature: its seeded checklist
+used ids (`q_screen`, `q_body`) that do not match the `CHECK_IMAGES` keys
+(`screen_cracks`, `body_dents`), so no picture ever rendered in a mock
+screenshot even when the CSS was right. The harness now uses the real ids.
+`app.js` is unchanged either way — `git diff main..ui-refresh -- app.js` is
+empty.

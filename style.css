@@ -1683,17 +1683,30 @@ tbody td.cell-price {
 .ck-pick.is-on .ck-pick__pct,
 .ck-pick--clean.is-on .ck-pick__pct--clean { background: #fff; }
 
-/* An answer with pictures: pictures side by side on top, words underneath. */
-.ck-pick--pic { flex-direction: column; align-items: stretch; min-height: 0; padding: 10px; }
-.ck-pick__pics { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+/* An answer with pictures: the two photos (whole, then zoom) side by side on
+   top, the label and its price underneath. Sizes are percentages of a button
+   that always has a definite width — a shrink-to-fit button here makes the
+   photos resolve against their own intrinsic width and they blow the row out. */
+.ck-pick--pic {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+  max-width: none;
+  min-height: 0;
+  padding: 10px;
+}
+.ck-pick__pics { display: flex; gap: 8px; width: 100%; }
 .ck-pick__img {
   display: block;
-  width: 100%;
+  flex: 0 0 auto;
+  width: calc(50% - 4px);
+  height: auto;
   aspect-ratio: 1 / 1;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: #fff;
-  object-fit: cover;
+  object-fit: contain;
 }
 .ck-pick__text { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; }
 .ck-pick--pic .ck-pick__pct { margin-left: auto; }
