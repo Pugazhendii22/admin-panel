@@ -3647,3 +3647,16 @@ kbd {
   color: var(--text-secondary);
   background: var(--surface-2, rgba(127, 127, 127, 0.08));
 }
+
+/* --- waiting for the saved session ------------------------------------- */
+.auth-splash { display: none; }
+body.auth-pending #login-screen,
+body.auth-pending #app-screen { visibility: hidden; }
+body.auth-pending .auth-splash {
+  display: grid;
+  place-items: center;
+  position: fixed;
+  inset: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}

@@ -348,9 +348,60 @@ let currentRole = null;
 let inspectorUnsub = null;
 let inspectors = [];
 
+// Bumped on every auth event. An older run that finishes after a newer one
+// started is describing a user who is no longer signed in, and must not draw
+// their role over the current one.
+let authRun = 0;
+
+// Which of the two staff lists an account is on.
+//
+// A failed read is retried rather than answered "no". Firestore can send the
+// first read before the fresh sign-in's token is attached and have it refused,
+// and treating that as "not an admin" is how a real inspector was bounced out
+// of a good session, or an account read as the wrong role. Only a read that
+// still fails after the retries is reported as unknown, which callers must not
+// treat as "not on the list".
+async function lookupRole(user) {
+  const check = async (collectionName) => {
+    let lastError = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const snap = await getDoc(doc(db, collectionName, user.uid));
+        return { exists: snap.exists(), failed: false };
+      } catch (e) {
+        lastError = e;
+        await new Promise((r) => setTimeout(r, 350 * (attempt + 1)));
+      }
+    }
+    return { exists: false, failed: true, error: lastError };
+  };
+
+  // Together, not one after the other: the sign-in screen is up for as long
+  // as this takes.
+  const [admin, inspector] = await Promise.all([
+    check("admins"),
+    check("inspectors"),
+  ]);
+  return {
+    isAdmin: admin.exists,
+    isInspector: inspector.exists,
+    unknown: (admin.failed && !admin.exists) || (inspector.failed && !inspector.exists),
+  };
+}
+
 onAuthStateChanged(auth, async (user) => {
+  const run = ++authRun;
+
   if (!user) {
     if (demoState) return;
+    // A role's page has had parts of itself removed (an inspector's loses the
+    // admin tabs outright) and has listeners running for the old user. The
+    // clean way to the next sign-in is a fresh page, not trying to put it back.
+    if (currentRole) {
+      currentRole = null;
+      window.location.reload();
+      return;
+    }
     stopOrdersListener();
     showLogin();
     return;
@@ -362,27 +413,18 @@ onAuthStateChanged(auth, async (user) => {
   // server-side) — see README.md. This check is a UX courtesy on top of
   // that: without it, any authenticated-but-unlisted account would still see
   // the full admin UI and only discover they can't write when a save fails.
-  let isAdmin = false;
-  try {
-    const adminDoc = await getDoc(doc(db, "admins", user.uid));
-    isAdmin = adminDoc.exists();
-  } catch (e) {
-    // Most likely the rules already reject a non-admin reading /admins/{uid}
-    // at all, which itself implies "no". Treat any failure as "not admin"
-    // rather than letting a network hiccup show the CRUD screen.
-    isAdmin = false;
-  }
+  const { isAdmin, isInspector, unknown } = await lookupRole(user);
+  if (run !== authRun) return;
 
-  // Not an admin? They may still be an inspector, who gets a much smaller
-  // screen: the pickups assigned to them, and nothing else.
-  let isInspector = false;
-  if (!isAdmin) {
-    try {
-      const doc_ = await getDoc(doc(db, "inspectors", user.uid));
-      isInspector = doc_.exists();
-    } catch (e) {
-      isInspector = false;
-    }
+  // Couldn't find out. Not the same as "not on the list": leave them signed
+  // in, say so, and let a reload try again, instead of signing out a good
+  // session over a network hiccup.
+  if (!isAdmin && !isInspector && unknown) {
+    el("login-error").textContent =
+      "Could not check this account just now. Check your connection and reload.";
+    el("login-error").hidden = false;
+    showLogin();
+    return;
   }
 
   if (!isAdmin && !isInspector) {
@@ -390,6 +432,7 @@ onAuthStateChanged(auth, async (user) => {
       "This account is signed in but is not on the admin or inspector list. " +
       "Ask an admin to add it, or sign in with an admin account.";
     el("login-error").hidden = false;
+    showLogin();
     await signOut(auth);
     return;
   }
@@ -401,7 +444,7 @@ onAuthStateChanged(auth, async (user) => {
   if (rolePill) rolePill.textContent = isAdmin ? "Admin" : "Inspector";
   showApp();
 
-  if (isInspector) {
+  if (!isAdmin) {
     // An inspector must not see the catalog, the pricing, or other people's
     // jobs, so the admin tabs are removed from the DOM rather than hidden —
     // a hidden tab is one devtools click from visible.
@@ -488,12 +531,23 @@ function friendlyAuthError(err) {
   return "Could not sign in: " + (err?.message || "unknown error");
 }
 
+// The page opens with `auth-pending` on <body>: Firebase restores a saved
+// session asynchronously, and until it has answered the sign-in form would be
+// on screen for a second and then vanish. Dropped by whichever of showLogin /
+// showApp first runs, and by a timeout in case the answer never comes.
+function settleAuth() {
+  document.body.classList.remove("auth-pending");
+}
+setTimeout(settleAuth, 8000);
+
 function showLogin() {
+  settleAuth();
   el("login-screen").hidden = false;
   el("app-screen").hidden = true;
 }
 
 function showApp() {
+  settleAuth();
   el("login-screen").hidden = true;
   el("app-screen").hidden = false;
 }
