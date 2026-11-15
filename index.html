@@ -337,7 +337,14 @@
 
         <div class="toolbar">
           <label class="field field--inline">
-            <span>Preview on a ₹ quote</span>
+            <span>Rules for</span>
+            <select id="pricing-scope" class="scope-select"
+                    title="Global rules apply to every brand. Pick a brand to give it its own.">
+              <option value="">All brands (global)</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+                        <span>Preview on a ₹ quote</span>
             <input id="pricing-base" type="number" min="0" step="1000" value="30000" />
           </label>
           <p class="toolbar-note">
@@ -377,6 +384,13 @@
         </header>
 
         <div class="toolbar">
+          <label class="field field--inline">
+            <span>Checklist for</span>
+            <select id="checklist-scope" class="scope-select"
+                    title="The global checklist is asked for every brand. Pick a brand to give it its own.">
+              <option value="">All brands (global)</option>
+            </select>
+          </label>
           <button id="checklist-add" class="btn btn--primary" type="button">
             <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
             Add question
@@ -384,6 +398,8 @@
           <button id="checklist-seed" class="btn" type="button" title="Fill in a standard checklist, for you to edit">Load standard questions</button>
           <span id="checklist-dirty" class="rule-card__dirty" hidden>Unsaved changes</span>
           <div class="toolbar-actions">
+            <button id="checklist-reset" class="btn" type="button" hidden
+                    title="Delete this brand's own checklist and ask the global one again">Use global again</button>
             <button id="checklist-save" class="btn btn--primary" type="button" disabled>Save checklist</button>
             <button id="checklist-refresh" class="btn" type="button">
               <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>

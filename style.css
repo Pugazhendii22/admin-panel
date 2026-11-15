@@ -3613,3 +3613,37 @@ kbd {
   .staff-grid { display: flex; flex-direction: column; gap: 16px; }
 }
 
+
+/* --- global vs per-brand rules ------------------------------------------ */
+.scope-select { min-width: 190px; }
+.scope-banner {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  background: var(--surface-2, rgba(127, 127, 127, 0.1));
+  color: var(--text-secondary);
+}
+.scope-banner--brand {
+  background: var(--success-soft);
+  color: var(--text-primary, inherit);
+}
+.rule-card--inherited { opacity: 0.92; }
+.rule-inherited {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.rule-inherited li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: var(--surface-2, rgba(127, 127, 127, 0.08));
+}
