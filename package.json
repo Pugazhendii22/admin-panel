@@ -1,0 +1,7 @@
+{
+  "name": "french-mobiles-admin-panel",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build-env.mjs"
+  }
+}
